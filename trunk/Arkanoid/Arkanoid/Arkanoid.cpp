@@ -19,17 +19,19 @@
 #define GET_BITS(number, start, end) (((number)&MASK((start), (end)))>>(start))
 
 #define INT_TO_BYTE(color) ((BYTE*)(&(color)))
+#define BOOL_TO_STR(boolean) ((boolean) ? "true" : "false")
 
 enum RGB_COMPS
 {
-	RED,
-	GREEN,
-	BLUE,
+	RED, 
+	GREEN, 
+	BLUE, 
 	ALPHA
 };
 
 void Message(char *fmt, ...)
 {
+	// ATTN: blocks the execution and may eat input messages!
 	if (fmt  ==  NULL)
 		return;
 	char text[1024];
@@ -38,6 +40,21 @@ void Message(char *fmt, ...)
 		_vsnprintf(text, 1024, fmt, ap);
 	va_end(ap);
 	MessageBox (NULL, text, "Message", MB_OK | MB_ICONEXCLAMATION);
+}
+
+void Print(char *fmt, ...)
+{
+	if (fmt  ==  NULL)
+		return;
+	char text[1024];
+	va_list ap;
+	va_start(ap, fmt);
+		_vsnprintf(text, 1024, fmt, ap);
+	va_end(ap);
+	static BOOL s_bIsDebuggerPresent = IsDebuggerPresent();
+	if(s_bIsDebuggerPresent)
+		OutputDebugString(text);
+	printf(text);
 }
 
 BYTE nBpp = 32;				// Bits Per Pixel
@@ -52,8 +69,8 @@ HGLRC hRC = NULL; // Rendering Context
 BOOL bFullscreen = FALSE;
 BOOL bVisible = TRUE;
 LPTSTR pchName = "Arkanoid";
-LONG nLeft = 0;		// Left Position
-LONG nTop = 0; 		// Top Position
+LONG nLeft = 400, nLastLeft = 0;		// Left Position
+LONG nTop = 300, nLastTop = 0; 		// Top Position
 LONG nWinWidth = 800;
 LONG nWinHeight = 600;
 RECT rect; 		      // oustide borders
@@ -82,13 +99,13 @@ BOOL glCreate()
 
 	// Enable transparent colors
 	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	// Set the clear color
 	BYTE *rgb = INT_TO_BYTE(nClearColor);
-	glClearColor(	rgb[RED] / 255.0f,
-					rgb[GREEN] / 255.0f,
-					rgb[BLUE] / 255.0f,
+	glClearColor(	rgb[RED] / 255.0f, 
+					rgb[GREEN] / 255.0f, 
+					rgb[BLUE] / 255.0f, 
 					rgb[ALPHA] / 255.0f);
 
 	return TRUE;
@@ -100,8 +117,8 @@ void Reshape()
 	glViewport (0, 0, nWinWidth, nWinHeight);
 	glMatrixMode (GL_PROJECTION);
 	glLoadIdentity();
-	glOrtho(0, nWinWidth,
-			0, nWinHeight,
+	glOrtho(0, nWinWidth, 
+			0, nWinHeight, 
 			1, -1);
 }
 
@@ -123,6 +140,8 @@ void InitWindow()
 			// Seting Top Window To Be Covering Everything Else
 			nStyle = WS_POPUP;										
 			nExtStyle |= WS_EX_TOPMOST;
+			nLastLeft = nLeft;
+			nLastTop = nTop;
 			nLeft = 0;
 			nTop = 0;
 			nWinWidth = nDisplayWidth;
@@ -130,10 +149,15 @@ void InitWindow()
 		}
 		else
 		{
-			Message("Mode Switch Failed!\nCannot Use That Resolution: %d:%d:%d\n",
+			Message("Mode Switch Failed!\nCannot Use That Resolution: %d:%d:%d\n", 
 					nDisplayWidth, nDisplayHeight, nBpp);
 			bCreateFullScreen = FALSE;
 		}
+	}
+	else if( nLastLeft || nLastTop )
+	{
+		nLeft = nLastLeft;
+		nTop = nLastTop;
 	}
 	RECT winRect = { nLeft, nTop, nLeft + nWinWidth, nTop + nWinHeight };
 	if(!bCreateFullScreen)// Adjust Window, Account For Window Borders
@@ -145,17 +169,17 @@ void InitWindow()
 BOOL CreateNewWindow()
 {
 	InitWindow();
-	hWnd = CreateWindowEx ( nExtStyle,						// Extended Style
-							pchName,								// Class Name
-							pchName,						// Window Title
-							nStyle,						// Window Style
-							max(0, rect.left),// Window X Position
-							max(0, rect.top),	// Window Y Position
-							rect.right - rect.left,	// Window Width
-							rect.bottom - rect.top,	// Window Height
-							HWND_DESKTOP,						
-							0,									// No Menu
-							hInst,								
+	hWnd = CreateWindowEx ( nExtStyle, 						// Extended Style
+							pchName, 								// Class Name
+							pchName, 						// Window Title
+							nStyle, 						// Window Style
+							max(0, rect.left), // Window X Position
+							max(0, rect.top), 	// Window Y Position
+							rect.right - rect.left, 	// Window Width
+							rect.bottom - rect.top, 	// Window Height
+							HWND_DESKTOP, 						
+							0, 									// No Menu
+							hInst, 								
 							NULL);
 	if (hWnd)												
 	{
@@ -164,25 +188,25 @@ BOOL CreateNewWindow()
 		{
 			PIXELFORMATDESCRIPTOR pfd =	
 			{
-				sizeof (PIXELFORMATDESCRIPTOR),
-				1,							// Version Number
-				PFD_DRAW_TO_WINDOW|PFD_SUPPORT_OPENGL|PFD_DOUBLEBUFFER,
-				PFD_TYPE_RGBA,
-				nBpp,
-				0, 0, 0, 0, 0, 0,			// Color Bits Ignored
-				0,							// No Alpha Buffer
-				0,							// Shift Bit Ignored
-				0,							// No Accumulation Buffer
-				0, 0, 0, 0,					// Accumulation Bits Ignored
-				nDepth,				// Z-Buffer (Depth Buffer)
-				nStencil,			// Stencil Buffer
-				0,							// No Auxiliary Buffer
-				PFD_MAIN_PLANE,				// Main Drawing Layer
-				0,							// Reserved
+				sizeof (PIXELFORMATDESCRIPTOR), 
+				1, 							// Version Number
+				PFD_DRAW_TO_WINDOW|PFD_SUPPORT_OPENGL|PFD_DOUBLEBUFFER, 
+				PFD_TYPE_RGBA, 
+				nBpp, 
+				0, 0, 0, 0, 0, 0, 			// Color Bits Ignored
+				0, 							// No Alpha Buffer
+				0, 							// Shift Bit Ignored
+				0, 							// No Accumulation Buffer
+				0, 0, 0, 0, 					// Accumulation Bits Ignored
+				nDepth, 				// Z-Buffer (Depth Buffer)
+				nStencil, 			// Stencil Buffer
+				0, 							// No Auxiliary Buffer
+				PFD_MAIN_PLANE, 				// Main Drawing Layer
+				0, 							// Reserved
 				0, 0, 0						// Layer Masks Ignored
 			};
 			int pf = ChoosePixelFormat (hDC, &pfd);
-			if (pf && SetPixelFormat(hDC, pf ,&pfd))
+			if (pf && SetPixelFormat(hDC, pf , &pfd))
 			{
 				hRC = wglCreateContext(hDC);
 				if(hRC)
@@ -256,7 +280,7 @@ struct Mouse{
 
 struct Keyboard{	
 	BOOL				keys[256];					// Keyboard Buttons
-	char				symbol;						// Ascii Character Of The Last Button
+	SHORT				symbol;						// Ascii Character Of The Last Button
 	BYTE				code;						// Virtual Key Code Of The Last Button Pressed (VK)
 	SHORT				repeatCount;				// repeat count
 	BYTE				scanCode;					// scan code
@@ -330,7 +354,7 @@ LRESULT CALLBACK WinProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		case WM_SYSCHAR:
 		{
 			keyboard.waiting = FALSE;
-			keyboard.symbol = (char)wParam;
+			keyboard.symbol = (SHORT)wParam;
 			return 0;
 		}
 		case WM_SYSKEYDOWN:
@@ -338,15 +362,44 @@ LRESULT CALLBACK WinProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		case WM_KEYDOWN:
 		case WM_KEYUP:
 		{
+			BYTE code = (BYTE)wParam;
 			keyboard.waiting = TRUE;
-			keyboard.code = (BYTE)wParam;
-			keyboard.repeatCount = (SHORT)GET_BITS((DWORD)lParam,0,15);
-			keyboard.scanCode = (BYTE)GET_BITS((DWORD)lParam,16,23);
-			keyboard.extendKey = GET_BIT((DWORD)lParam,24);
-			keyboard.alt = GET_BIT((DWORD)lParam,29);
-			keyboard.repeated = GET_BIT((DWORD)lParam,30);
-			keyboard.pressed = !GET_BIT((DWORD)lParam,31);
-			keyboard.keys[(BYTE)wParam] = keyboard.pressed;
+			keyboard.code = code;
+			keyboard.repeatCount = (SHORT)GET_BITS((DWORD)lParam, 0, 15);
+			keyboard.scanCode = (BYTE)GET_BITS((DWORD)lParam, 16, 23);
+			keyboard.extendKey = GET_BIT((DWORD)lParam, 24);
+			keyboard.alt = GET_BIT((DWORD)lParam, 29);
+			keyboard.repeated = GET_BIT((DWORD)lParam, 30);
+			keyboard.keys[code] = keyboard.pressed = !GET_BIT((DWORD)lParam, 31);
+
+			if( !keyboard.repeated )
+			{
+				if( keyboard.keys[VK_F11] )
+				{
+					ToggleFullscreen();
+				}
+				else if( keyboard.keys[VK_F4] && keyboard.alt )
+				{
+					Terminate();
+				}
+				else if( keyboard.keys[VK_LEFT] )
+				{
+					Print("LEFT\n");
+				}
+				else if( keyboard.keys[VK_RIGHT] )
+				{
+					Print("RIGHT\n");
+				}
+				else if( keyboard.keys[VK_UP] )
+				{
+					Print("UP\n");
+				}
+				else if( keyboard.keys[VK_DOWN] )
+				{
+					Print("DOWN\n");
+				}
+			}
+
 			return 0;
 		}
 		case WM_MOUSEMOVE:
@@ -384,7 +437,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLin
 	nShow = nCmdShow;
 	
 	LPTSTR pchName = "Arkanoid";
-	HCURSOR hCursor = LoadCursor(NULL,IDC_ARROW);
+	HCURSOR hCursor = LoadCursor(NULL, IDC_ARROW);
 
 	if (!hPrevInstance)
 	{
