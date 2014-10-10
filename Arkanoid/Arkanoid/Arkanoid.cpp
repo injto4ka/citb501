@@ -1,5 +1,5 @@
 #include <windows.h>			// Windows API Definitions
-#include <deque>
+#include <string>
 #include <gl/gl.h>									// Header File For The OpenGL32 Library
 #include <gl/glu.h>									// Header File For The GLu32 Library
 
@@ -19,17 +19,16 @@
 #define GET_BITS(number, start, end) (((number)&MASK((start), (end)))>>(start))
 
 #define INT_TO_BYTE(color) ((BYTE*)(&(color)))
-#define BOOL_TO_STR(boolean) ((boolean) ? "true" : "false")
 
 enum RGB_COMPS
 {
-	RED, 
-	GREEN, 
-	BLUE, 
+	RED,
+	GREEN,
+	BLUE,
 	ALPHA
 };
 
-void Print(char *fmt, ...)
+void Message(char *fmt, ...)
 {
 	if (fmt  ==  NULL)
 		return;
@@ -38,10 +37,7 @@ void Print(char *fmt, ...)
 	va_start(ap, fmt);
 		_vsnprintf(text, 1024, fmt, ap);
 	va_end(ap);
-	static BOOL s_bIsDebuggerPresent = IsDebuggerPresent();
-	if(s_bIsDebuggerPresent)
-		OutputDebugString(text);
-	printf(text);
+	MessageBox (NULL, text, "Message", MB_OK | MB_ICONEXCLAMATION);
 }
 
 BYTE nBpp = 32;				// Bits Per Pixel
@@ -55,16 +51,15 @@ HDC hDC = NULL;   // Device Context
 HGLRC hRC = NULL; // Rendering Context
 BOOL bFullscreen = FALSE;
 BOOL bVisible = TRUE;
-BOOL bUpdated = 0;
 LPTSTR pchName = "Arkanoid";
-LONG nLeft = 400, nLastLeft = 0;		// Left Position
-LONG nTop = 300, nLastTop = 0; 		// Top Position
+LONG nLeft = 0;		// Left Position
+LONG nTop = 0; 		// Top Position
 LONG nWinWidth = 800;
 LONG nWinHeight = 600;
 RECT rect; 		      // oustide borders
 DWORD nStyle = 0;
 DWORD nExtStyle = 0;
-BOOL bAllowSleep = FALSE;
+BOOL bAllowSleep = TRUE;
 BOOL bAllowYield = TRUE;
 BOOL bIsProgramLooping = TRUE;
 BOOL bCreateFullScreen = FALSE;
@@ -72,194 +67,11 @@ LONG nDisplayWidth = 800;
 LONG nDisplayHeight = 600; 
 int nClearColor = 0xff00ffff;
 
-void Message(char *fmt, ...)
-{
-	// ATTN: blocks the execution and may eat input messages!
-	if (fmt  ==  NULL)
-		return;
-	char text[1024];
-	va_list ap;
-	va_start(ap, fmt);
-		_vsnprintf(text, 1024, fmt, ap);
-	va_end(ap);
-	MessageBox(hWnd, text, "Message", MB_OK | MB_ICONEXCLAMATION);
-}
-
-void Terminate()
-{
-	bIsProgramLooping = FALSE;
-	PostMessage (hWnd, WM_QUIT, 0, 0);
-}
-
-void ToggleFullscreen()
-{
-	bCreateFullScreen = !bCreateFullScreen;
-	PostMessage(hWnd, WM_QUIT, 0, 0);
-}
-
-struct Mouse{
-	BOOL				lbutton;					// Mouse Left Button
-	BOOL				mbutton;					// Mouse Middle Button
-	BOOL				rbutton;					// Mouse Right Button
-	WORD				x;							// Mouse X Position	
-	WORD				y;							// Mouse Y Position
-	short				wheel;						// Mouse Wheel
-	BOOL				shift;						// Shift Button Pressed While Mouse Event
-	BOOL				ctrl;						// Control Button Pressed While Mouse Event
-};
-
-struct Keyboard{	
-	BYTE				code;						// Virtual Key Code Of The Last Button Pressed (VK)
-	SHORT				repeatCount;				// repeat count
-	BYTE				scanCode;					// scan code
-	BOOL				extendKey;					// extended-key flag
-	BOOL				alt;						// context code
-	BOOL				repeated;					// previous key-state flag
-	BOOL				pressed;					// transition-state flag
-	
-};
-
-enum InputType { InputKey, InputChar, InputMouse };
-struct Input{
-	UINT uMsg;
-	InputType eType;
-	SHORT nSymbol;
-	Mouse mouse;
-	Keyboard keyboard;
-};
-
-BOOL bKeys[256] = {0};
-std::deque<Input> dInput;
-
-class CriticalSection // Thread synchronization class
-{
-protected:
-	CRITICAL_SECTION critical_section;
-public:
-	CriticalSection()
-	{
-		InitializeCriticalSection(&critical_section);
-	}
-	~CriticalSection()
-	{
-		DeleteCriticalSection(&critical_section);
-	}
-	void Enter()
-	{
-		EnterCriticalSection(&critical_section);
-	}
-	void Leave()
-	{
-		LeaveCriticalSection(&critical_section);
-	}
-	void Wait()
-	{
-		EnterCriticalSection(&critical_section);
-		LeaveCriticalSection(&critical_section);
-	}
-} csInput;
-
-class Lock
-{
-private:
-	CriticalSection &__cs;
-public:
-	Lock(CriticalSection &cs):__cs(cs)
-	{
-		__cs.Enter();
-	}
-	~Lock()
-	{
-		__cs.Leave();
-	}
-};
-
-class PrecisionTimer
-{
-protected:
-	__int64 nCountsPerSecond, nStartCounter;
-	static __int64 Count()
-	{
-		LARGE_INTEGER tmp;
-		if(!QueryPerformanceCounter(&tmp))
-			return 0;
-		return (__int64)tmp.QuadPart;
-	}
-public:
-	PrecisionTimer():nCountsPerSecond(0), nStartCounter(0)
-	{
-		LARGE_INTEGER tmp;
-		if(!QueryPerformanceFrequency(&tmp))
-			return;
-		nCountsPerSecond = (__int64)tmp.QuadPart;
-	}
-	float Time()
-	{
-		return nCountsPerSecond ? (float)(Count() - nStartCounter) / nCountsPerSecond : 0;
-	}
-	int Time(int nPrecision)
-	{
-		return nCountsPerSecond ? (int)(nPrecision * (Count() - nStartCounter) / nCountsPerSecond) : 0;
-	}
-	void Restart()
-	{
-		nStartCounter = Count();
-	}
-} timer;
-
 void Update()
-{
-	if( dInput.size() > 0 )
-	{
-		Input input;
-		{
-			Lock lock(csInput);
-			input = dInput.front();
-			dInput.pop_front();
-		}
-		switch(input.eType)
-		{
-		case InputKey:
-			const Keyboard &keyboard = input.keyboard;
-			bKeys[keyboard.code] = keyboard.pressed;
-			if( !keyboard.repeated && keyboard.pressed )
-			{
-				switch( keyboard.code )
-				{
-				case VK_F11:
-					ToggleFullscreen();
-					break;
-				case VK_F4:
-					Terminate();
-					break;
-				case VK_LEFT:
-					Print("LEFT\n");
-					break;
-				case VK_RIGHT:
-					Print("RIGHT\n");
-					break;
-				case VK_UP:
-					Print("UP\n");
-					break;
-				case VK_DOWN:
-					Print("DOWN\n");
-					break;
-				}
-			}
-		}
-	}
-	bUpdated = TRUE;
-}
+{}
 void Draw()
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-}
-
-void Redraw()
-{
-	bUpdated = FALSE;
-	Draw();
-	SwapBuffers(hDC);
 }
 
 BOOL glCreate()
@@ -270,13 +82,13 @@ BOOL glCreate()
 
 	// Enable transparent colors
 	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
 
 	// Set the clear color
 	BYTE *rgb = INT_TO_BYTE(nClearColor);
-	glClearColor(	rgb[RED] / 255.0f, 
-					rgb[GREEN] / 255.0f, 
-					rgb[BLUE] / 255.0f, 
+	glClearColor(	rgb[RED] / 255.0f,
+					rgb[GREEN] / 255.0f,
+					rgb[BLUE] / 255.0f,
 					rgb[ALPHA] / 255.0f);
 
 	return TRUE;
@@ -288,8 +100,8 @@ void Reshape()
 	glViewport (0, 0, nWinWidth, nWinHeight);
 	glMatrixMode (GL_PROJECTION);
 	glLoadIdentity();
-	glOrtho(0, nWinWidth, 
-			0, nWinHeight, 
+	glOrtho(0, nWinWidth,
+			0, nWinHeight,
 			1, -1);
 }
 
@@ -311,8 +123,6 @@ void InitWindow()
 			// Seting Top Window To Be Covering Everything Else
 			nStyle = WS_POPUP;										
 			nExtStyle |= WS_EX_TOPMOST;
-			nLastLeft = nLeft;
-			nLastTop = nTop;
 			nLeft = 0;
 			nTop = 0;
 			nWinWidth = nDisplayWidth;
@@ -320,15 +130,10 @@ void InitWindow()
 		}
 		else
 		{
-			Message("Mode Switch Failed!\nCannot Use That Resolution: %d:%d:%d\n", 
+			Message("Mode Switch Failed!\nCannot Use That Resolution: %d:%d:%d\n",
 					nDisplayWidth, nDisplayHeight, nBpp);
 			bCreateFullScreen = FALSE;
 		}
-	}
-	else if( nLastLeft || nLastTop )
-	{
-		nLeft = nLastLeft;
-		nTop = nLastTop;
 	}
 	RECT winRect = { nLeft, nTop, nLeft + nWinWidth, nTop + nWinHeight };
 	if(!bCreateFullScreen)// Adjust Window, Account For Window Borders
@@ -340,17 +145,17 @@ void InitWindow()
 BOOL CreateNewWindow()
 {
 	InitWindow();
-	hWnd = CreateWindowEx ( nExtStyle, 						// Extended Style
-							pchName, 								// Class Name
-							pchName, 						// Window Title
-							nStyle, 						// Window Style
-							max(0, rect.left), // Window X Position
-							max(0, rect.top), 	// Window Y Position
-							rect.right - rect.left, 	// Window Width
-							rect.bottom - rect.top, 	// Window Height
-							HWND_DESKTOP, 						
-							0, 									// No Menu
-							hInst, 								
+	hWnd = CreateWindowEx ( nExtStyle,						// Extended Style
+							pchName,								// Class Name
+							pchName,						// Window Title
+							nStyle,						// Window Style
+							max(0, rect.left),// Window X Position
+							max(0, rect.top),	// Window Y Position
+							rect.right - rect.left,	// Window Width
+							rect.bottom - rect.top,	// Window Height
+							HWND_DESKTOP,						
+							0,									// No Menu
+							hInst,								
 							NULL);
 	if (hWnd)												
 	{
@@ -359,25 +164,25 @@ BOOL CreateNewWindow()
 		{
 			PIXELFORMATDESCRIPTOR pfd =	
 			{
-				sizeof (PIXELFORMATDESCRIPTOR), 
-				1, 							// Version Number
-				PFD_DRAW_TO_WINDOW|PFD_SUPPORT_OPENGL|PFD_DOUBLEBUFFER, 
-				PFD_TYPE_RGBA, 
-				nBpp, 
-				0, 0, 0, 0, 0, 0, 			// Color Bits Ignored
-				0, 							// No Alpha Buffer
-				0, 							// Shift Bit Ignored
-				0, 							// No Accumulation Buffer
-				0, 0, 0, 0, 					// Accumulation Bits Ignored
-				nDepth, 				// Z-Buffer (Depth Buffer)
-				nStencil, 			// Stencil Buffer
-				0, 							// No Auxiliary Buffer
-				PFD_MAIN_PLANE, 				// Main Drawing Layer
-				0, 							// Reserved
+				sizeof (PIXELFORMATDESCRIPTOR),
+				1,							// Version Number
+				PFD_DRAW_TO_WINDOW|PFD_SUPPORT_OPENGL|PFD_DOUBLEBUFFER,
+				PFD_TYPE_RGBA,
+				nBpp,
+				0, 0, 0, 0, 0, 0,			// Color Bits Ignored
+				0,							// No Alpha Buffer
+				0,							// Shift Bit Ignored
+				0,							// No Accumulation Buffer
+				0, 0, 0, 0,					// Accumulation Bits Ignored
+				nDepth,				// Z-Buffer (Depth Buffer)
+				nStencil,			// Stencil Buffer
+				0,							// No Auxiliary Buffer
+				PFD_MAIN_PLANE,				// Main Drawing Layer
+				0,							// Reserved
 				0, 0, 0						// Layer Masks Ignored
 			};
 			int pf = ChoosePixelFormat (hDC, &pfd);
-			if (pf && SetPixelFormat(hDC, pf , &pfd))
+			if (pf && SetPixelFormat(hDC, pf ,&pfd))
 			{
 				hRC = wglCreateContext(hDC);
 				if(hRC)
@@ -424,6 +229,43 @@ BOOL DestroyWindow()
 	ShowCursor(TRUE);													// Show The Cursor
 	return TRUE;														// Return True
 }
+
+void Terminate()
+{
+	bIsProgramLooping = FALSE;
+	PostMessage (hWnd, WM_QUIT, 0, 0);
+}
+
+void ToggleFullscreen()
+{
+	bCreateFullScreen =! bCreateFullScreen;
+	PostMessage(hWnd, WM_QUIT, 0, 0);
+}
+
+struct Mouse{
+	BOOL				lbutton;					// Mouse Left Button
+	BOOL				mbutton;					// Mouse Middle Button
+	BOOL				rbutton;					// Mouse Right Button
+	WORD				x;							// Mouse X Position	
+	WORD				y;							// Mouse Y Position
+	short				wheel;						// Mouse Wheel
+	BOOL				shift;						// Shift Button Pressed While Mouse Event
+	BOOL				ctrl;						// Control Button Pressed While Mouse Event
+	BOOL				move;						// Is the mouse moving
+} mouse = {0};
+
+struct Keyboard{	
+	BOOL				keys[256];					// Keyboard Buttons
+	char				symbol;						// Ascii Character Of The Last Button
+	BYTE				code;						// Virtual Key Code Of The Last Button Pressed (VK)
+	SHORT				repeatCount;				// repeat count
+	BYTE				scanCode;					// scan code
+	BOOL				extendKey;					// extended-key flag
+	BOOL				alt;						// context code
+	BOOL				repeated;					// previous key-state flag
+	BOOL				pressed;					// transition-state flag
+	BOOL				waiting;					// Indicates symbol waiting
+} keyboard = {0};
 
 LRESULT CALLBACK WinProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -487,12 +329,8 @@ LRESULT CALLBACK WinProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		case WM_SYSDEADCHAR:
 		case WM_SYSCHAR:
 		{
-			Input input = {uMsg, InputChar};
-			input.nSymbol = (SHORT)wParam;
-			{
-				Lock lock(csInput);
-				dInput.push_back(input);
-			}
+			keyboard.waiting = FALSE;
+			keyboard.symbol = (char)wParam;
 			return 0;
 		}
 		case WM_SYSKEYDOWN:
@@ -500,18 +338,15 @@ LRESULT CALLBACK WinProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		case WM_KEYDOWN:
 		case WM_KEYUP:
 		{
-			Input input = {uMsg, InputKey};
-			input.keyboard.code = (BYTE)wParam;
-			input.keyboard.repeatCount = (SHORT)GET_BITS((DWORD)lParam, 0, 15);
-			input.keyboard.scanCode = (BYTE)GET_BITS((DWORD)lParam, 16, 23);
-			input.keyboard.extendKey = GET_BIT((DWORD)lParam, 24);
-			input.keyboard.alt = GET_BIT((DWORD)lParam, 29);
-			input.keyboard.repeated = GET_BIT((DWORD)lParam, 30);
-			input.keyboard.pressed = !GET_BIT((DWORD)lParam, 31);
-			{
-				Lock lock(csInput);
-				dInput.push_back(input);
-			}
+			keyboard.waiting = TRUE;
+			keyboard.code = (BYTE)wParam;
+			keyboard.repeatCount = (SHORT)GET_BITS((DWORD)lParam,0,15);
+			keyboard.scanCode = (BYTE)GET_BITS((DWORD)lParam,16,23);
+			keyboard.extendKey = GET_BIT((DWORD)lParam,24);
+			keyboard.alt = GET_BIT((DWORD)lParam,29);
+			keyboard.repeated = GET_BIT((DWORD)lParam,30);
+			keyboard.pressed = !GET_BIT((DWORD)lParam,31);
+			keyboard.keys[(BYTE)wParam] = keyboard.pressed;
 			return 0;
 		}
 		case WM_MOUSEMOVE:
@@ -527,61 +362,19 @@ LRESULT CALLBACK WinProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		case WM_MOUSEACTIVATE:
 		case WM_MOUSEWHEEL:
 		{
-			Input input = {uMsg, InputMouse};
-			input.mouse.x = LOWORD(lParam);
-			input.mouse.y = HIWORD(lParam);
-			input.mouse.wheel = ((short)HIWORD(wParam))/WHEEL_DELTA;			// wheel rotation
-			input.mouse.lbutton = (wParam&MK_LBUTTON) != 0;
-			input.mouse.mbutton = (wParam&MK_MBUTTON) != 0;
-			input.mouse.rbutton = (wParam&MK_RBUTTON) != 0;
-			input.mouse.shift = (wParam&MK_SHIFT) != 0;
-			input.mouse.ctrl = (wParam&MK_CONTROL) != 0;
-			{
-				Lock lock(csInput);
-				dInput.push_back(input);
-			}
+			mouse.x = LOWORD(lParam);
+			mouse.y = HIWORD(lParam);
+			mouse.wheel = ((short)HIWORD(wParam))/WHEEL_DELTA;			// wheel rotation
+			mouse.lbutton = (wParam&MK_LBUTTON) != 0;
+			mouse.mbutton = (wParam&MK_MBUTTON) != 0;
+			mouse.rbutton = (wParam&MK_RBUTTON) != 0;
+			mouse.shift = (wParam&MK_SHIFT) != 0;
+			mouse.ctrl = (wParam&MK_CONTROL) != 0;
+			mouse.move = (uMsg == WM_MOUSEMOVE);
 			return 0;
 		}
 	}
 	return DefWindowProc(hWnd, uMsg, wParam, lParam);
-}
-
-void SetThreadName(LPCSTR name, DWORD threadID = -1)
-{
-	if(!name||!name[0])
-		return;
-
-	struct
-	{
-		DWORD dwType; // must be 0x1000
-		LPCSTR szName; // pointer to name (in user addr space)
-		DWORD dwThreadID; // thread ID (-1=caller thread)
-		DWORD dwFlags; // reserved for future use, must be zero
-	} info = {0x1000, name, threadID, 0};
-
-	__try
-	{
-		RaiseException( 0x406D1388, 0, sizeof(info)/sizeof(DWORD), (DWORD*)&info );
-	}
-	__except(EXCEPTION_CONTINUE_EXECUTION)
-	{
-	}
-}
-
-static DWORD WINAPI UpdateProc(void * param)
-{
-	HANDLE hThread = GetCurrentThread();
-	SetThreadPriority(hThread, THREAD_PRIORITY_NORMAL);
-	SetThreadName("Update");
-
-	while (bIsProgramLooping)
-	{
-		Update();
-		Sleep(10);
-	}
-
-	CloseHandle(hThread);
-	return 0;
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLine, int nCmdShow)
@@ -591,7 +384,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLin
 	nShow = nCmdShow;
 	
 	LPTSTR pchName = "Arkanoid";
-	HCURSOR hCursor = LoadCursor(NULL, IDC_ARROW);
+	HCURSOR hCursor = LoadCursor(NULL,IDC_ARROW);
 
 	if (!hPrevInstance)
 	{
@@ -609,12 +402,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLin
 			Message("Register Class '%s' Failed!", pchName);
 			return -1;
 		}
-	}
-
-	if( !CreateThread(NULL, 0, UpdateProc, NULL, 0, NULL) )
-	{
-		Message("Failed to start the update thread!");
-		return -1;
 	}
 
 	while (bIsProgramLooping)
@@ -638,9 +425,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLin
 						DispatchMessage(&msg);
 						continue;
 					}
-					if( bUpdated )
+					Update();
+					if(bVisible)
 					{
-						bUpdated = FALSE;
 						Draw();
 						SwapBuffers(hDC);
 					}
