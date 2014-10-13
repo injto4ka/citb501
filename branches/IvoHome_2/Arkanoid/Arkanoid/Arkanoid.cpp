@@ -199,7 +199,7 @@ public:
 	}
 	int Time(int nPrecision)
 	{
-		return nCountsPerSecond ? (int)(nPrecision * (Count() - nStartCounter) / nCountsPerSecond) : 0;
+		return nCountsPerSecond ? (int)((nPrecision * (Count() - nStartCounter)) / nCountsPerSecond) : 0;
 	}
 	void Restart()
 	{
@@ -207,8 +207,27 @@ public:
 	}
 } timer;
 
+void Draw()
+{
+	BYTE *rgb = INT_TO_BYTE(nClearColor);
+	glClearColor(	rgb[RED]/ 255.0f, 
+					rgb[GREEN] / 255.0f, 
+					rgb[BLUE] / 255.0f, 
+					rgb[ALPHA] / 255.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+
 void Update()
 {
+	static bool sStartTimer = false;
+	static PrecisionTimer sTime;
+	static BYTE rgb_old[4];
+	static BYTE rgb_target[4];
+	
+#define cTimeInterval (5.0f)
+#define MIN(x,y) ((x)<(y))?(x):(y)
+#define DIF_VAL(x,y) ((x)>(y)?((x)-(y)):(((y)-(x))*(-1)))
+
 	if( dInput.size() > 0 )
 	{
 		Input input;
@@ -244,15 +263,53 @@ void Update()
 				case VK_DOWN:
 					Print("DOWN\n");
 					break;
+				case VK_F1:
+				{
+					BYTE *rgb = INT_TO_BYTE(nClearColor);
+					sStartTimer = true;
+					//Get the old value of the colour
+					memcpy(&rgb_old,&nClearColor,4*sizeof(BYTE));
+
+					//Get the random colour
+					rgb_target[RED]   = rand()%255;
+					rgb_target[GREEN] = rand()%255;
+					rgb_target[BLUE]  = rand()%255;
+
+					sTime.Restart();
+					break;
+				}
 				}
 			}
 		}
 	}
+
+	if(true==sStartTimer)
+	{
+		BYTE *rgb = INT_TO_BYTE(nClearColor);
+
+		float time = sTime.Time();//Get the time used in the function
+
+		//calculate the new values with the formula - 
+		/**********************************************/
+		/******* R = R0 + ((R-R0)*MIN(t,T))/T *********/
+		//R - the current value of the colour
+		//R0 - The start value
+		//t - the current time passed sins the begining
+		//T - the time target for the colour change
+
+		rgb[RED] = rgb_old[RED] + BYTE((DIF_VAL(float(rgb_target[RED]),float(rgb[RED]))*(MIN(time,cTimeInterval)))/cTimeInterval);
+		rgb[GREEN] = rgb_old[GREEN] + BYTE((DIF_VAL(float(rgb_target[GREEN]),float(rgb[GREEN]))*(MIN(time,cTimeInterval)))/cTimeInterval);
+		rgb[BLUE] = rgb_old[BLUE] + BYTE((DIF_VAL(float(rgb_target[BLUE]),float(rgb[BLUE]))*(MIN(time,cTimeInterval)))/cTimeInterval);
+
+		//Debug print
+		Print("%d : %d : %d : %d\n",rgb[RED],rgb[GREEN],rgb[BLUE],nClearColor);
+		if(cTimeInterval < time)
+		{
+			sStartTimer = false;
+		}
+	}
+
 	bUpdated = TRUE;
-}
-void Draw()
-{
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
 void Redraw()
