@@ -1,5 +1,7 @@
 #include <windows.h>			// Windows API Definitions
+#include <stdio.h>
 #include <deque>
+#include <vector>
 #include <gl/gl.h>									// Header File For The OpenGL32 Library
 #include <gl/glu.h>									// Header File For The GLu32 Library
 
@@ -21,12 +23,199 @@
 #define INT_TO_BYTE(color) ((BYTE*)(&(color)))
 #define BOOL_TO_STR(boolean) ((boolean) ? "true" : "false")
 
+
 enum RGB_COMPS
 {
 	RED, 
 	GREEN, 
 	BLUE, 
 	ALPHA
+};
+
+/// the tga header (18 bytes!)
+#pragma pack(push,1) // turn off data boundary alignment
+struct TGAHeader
+{
+	// sometimes the tga file has a field with some custom info in. This 
+	// just identifies the size of that field. If it is anything other
+	// than zero, forget it.
+	unsigned char m_iIdentificationFieldSize;
+	// This field specifies if a colour map is present, 0-no, 1 yes...
+	unsigned char m_iColourMapType;
+	// only going to support RGB/RGBA/8bit - 2, colour mapped - 1
+	unsigned char m_iImageTypeCode;
+	// ignore this field....0
+	unsigned short m_iColorMapOrigin;
+	// size of the colour map
+	unsigned short m_iColorMapLength;
+	// bits per pixel of the colour map entries...
+	unsigned char m_iColourMapEntrySize;
+	// ignore this field..... 0
+	unsigned short m_iX_Origin;
+	// ignore this field..... 0
+	unsigned short m_iY_Origin;
+	// the image width....
+	unsigned short m_iWidth;
+	// the image height.... 
+	unsigned short m_iHeight;
+	// the bits per pixel of the image, 8,16,24 or 32
+	unsigned char m_iBPP;
+	// ignore this field.... 0
+	unsigned char m_ImageDescriptorByte;
+};
+#pragma pack(pop)
+
+#define PIXEL_COMP_OLD	0xFF
+#define PIXEL_COMP_GRAY	0x01
+#define PIXEL_COMP_RGB	0x03
+#define PIXEL_COMP_RGBA	0x04
+
+void SetMemAlign(int nMemWidth, BOOL bPack)
+{
+	if(nMemWidth <= 0)
+		return;
+	for(GLint nAlign = 8;;nAlign >>= 1)
+	{
+		if(nAlign == 1 || nMemWidth % nAlign == 0)
+		{
+			glPixelStorei(bPack ? GL_PACK_ALIGNMENT : GL_UNPACK_ALIGNMENT, nAlign);
+			return;
+		}
+	}
+}
+
+class File
+{
+	FILE *pFile;
+	int nId;
+public:
+	File():pFile(NULL), nId(-1) {}
+	~File() { Close(); }
+	BOOL Open(const char *pchFileName, const char *pchMode = "rb")
+	{
+		Close();
+		if(pchFileName && pchMode)
+		{
+			pFile = fopen(pchFileName, pchMode);
+			if(pFile)
+			{
+				nId = _fileno(pFile);
+				return TRUE;
+			}
+		}
+		return FALSE;
+	}
+	void Close()
+	{
+		if(!pFile)
+			return;
+		fclose(pFile);
+		pFile = NULL;
+		nId = -1;
+	}
+	int Descript() const
+	{
+		return nId;
+	}
+	operator FILE*(){ return pFile; }
+	operator int(){ return nId; }
+};
+
+#define REPLACE(a,b) (a)^=(b)^=(a)^=(b)
+
+class Image
+{
+	std::vector<char> vBuffer;
+public:
+	WORD uWidth, uHeight;
+	BYTE uComps;
+
+	Image():uWidth(0),uHeight(0),uComps(PIXEL_COMP_RGB){}
+
+	char *GetDataPtr() { return vBuffer.size() > 0 ? &vBuffer[0] : NULL; }
+	size_t GetDataSize() const { return vBuffer.size(); }
+	WORD GetWidth() const { return uWidth; }
+	WORD GetHeight() const { return uHeight; }
+	BYTE GetComp() const { return uComps; }
+	
+	BOOL SetSize(int nNewWidth, int nNewHeight, int nNewComp = PIXEL_COMP_RGB)
+	{
+		if(nNewWidth <= 0 || nNewHeight <= 0 ||
+			nNewComp != PIXEL_COMP_GRAY && nNewComp != PIXEL_COMP_RGB && nNewComp != PIXEL_COMP_RGBA)
+			return FALSE;
+		vBuffer.resize(nNewWidth * nNewHeight * nNewComp);
+		uComps = nNewComp;
+		uWidth = nNewWidth;
+		uHeight = nNewHeight;
+		return TRUE;
+	}
+	void Clear()
+	{
+		vBuffer.clear();
+	}
+	void FlipV()
+	{
+		char *pData = GetDataPtr();
+		const int my = uHeight/2, B = uComps * uWidth, D = (uHeight - 1) * B;
+		for(int i = 0 ; i < uWidth; i++)
+		{
+			const int A = uComps * i, C = A + D;
+			for(int j = 0; j < my; j++)
+			{
+				const int p1 = A + j * B, p2 = C - j * B;
+				switch(uComps)
+				{
+				case PIXEL_COMP_RGBA:
+					REPLACE(pData[p1+3], pData[p2+3]);
+				case PIXEL_COMP_RGB:
+					REPLACE(pData[p1+2], pData[p2+2]);
+					REPLACE(pData[p1+1], pData[p2+1]);
+				case PIXEL_COMP_GRAY:
+					REPLACE(pData[p1], pData[p2]);
+				}
+			}
+		}
+	}
+	// Read TGA format rgb or rgba image
+	BOOL ReadTGA(FILE* fp)
+	{
+		TGAHeader header;
+		if(	!fp ||
+			!fread(&header, sizeof(TGAHeader), 1, fp) ||
+			header.m_iImageTypeCode != 2 ||
+			!SetSize(header.m_iWidth, header.m_iHeight, header.m_iBPP / 8))
+			return FALSE;
+		if( !fread(GetDataPtr(), 1, GetDataSize(), fp) )
+				return FALSE;
+		if(GET_BIT(header.m_ImageDescriptorByte, 5))
+			FlipV();
+		return TRUE; 
+	}
+	BOOL ReadTGA(const char *pchFileName)
+	{
+		File file;
+		return (file.Open(pchFileName)) ? ReadTGA(file) : FALSE;
+	}
+	GLuint GetPixelFormat() const
+	{
+		switch(uComps)
+		{
+		case PIXEL_COMP_RGBA:
+			return GL_RGBA;
+		case PIXEL_COMP_RGB:
+			return GL_RGB;
+		default:
+			return GL_LUMINANCE;
+		}
+	}
+	void Draw(float x, float y)
+	{
+		if(!uWidth)
+			return;
+		SetMemAlign(uWidth, FALSE);
+		glRasterPos2f(x, y);
+		glDrawPixels(uWidth, uHeight, GetPixelFormat(), GL_UNSIGNED_BYTE, GetDataPtr());
+	}
 };
 
 void Print(char *fmt, ...)
@@ -70,7 +259,9 @@ BOOL bIsProgramLooping = TRUE;
 BOOL bCreateFullScreen = FALSE;
 LONG nDisplayWidth = 800;
 LONG nDisplayHeight = 600; 
-int nClearColor = 0xff00ffff;
+int nClearColor = 0xffffffff;
+bool bLoaded = false;
+Image imgBall;
 
 void Message(char *fmt, ...)
 {
@@ -174,7 +365,7 @@ public:
 	}
 };
 
-class PrecisionTimer
+class Timer
 {
 protected:
 	__int64 nCountsPerSecond, nStartCounter;
@@ -186,7 +377,7 @@ protected:
 		return (__int64)tmp.QuadPart;
 	}
 public:
-	PrecisionTimer():nCountsPerSecond(0), nStartCounter(0)
+	Timer():nCountsPerSecond(0), nStartCounter(0)
 	{
 		LARGE_INTEGER tmp;
 		if(!QueryPerformanceFrequency(&tmp))
@@ -209,6 +400,13 @@ public:
 
 void Update()
 {
+	if( !bLoaded )
+	{
+		bLoaded = true;
+		if( !imgBall.ReadTGA("art/ball.tga") )
+			Print("Error reading image!");
+	}
+
 	if( dInput.size() > 0 )
 	{
 		Input input;
@@ -253,6 +451,7 @@ void Update()
 void Draw()
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	imgBall.Draw(0, 0);
 }
 
 void Redraw()
