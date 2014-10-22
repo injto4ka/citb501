@@ -213,7 +213,6 @@ GLvoid DrawFrame(float x, float y, float z, float r, float w)
 	glTranslatef(x, y, z);
 
 	glPushAttrib(GL_ENABLE_BIT);
-	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_LIGHTING);
 	glDisable(GL_TEXTURE_2D);
 

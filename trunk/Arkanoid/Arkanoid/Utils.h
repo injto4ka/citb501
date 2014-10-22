@@ -28,6 +28,19 @@ int Random(int nMin, int nMax);
 int Random(int nRange);
 void InitRandGen();
 
+// FLOAT TO INT OPERATIONS:
+inline int Trunc(float x)
+{
+	int retval;
+	_asm cvttss2si eax, x
+	_asm mov retval, eax
+	return retval;
+}
+inline int Round(float x)
+{
+	return Trunc(x < 0.0f ? (x - 0.5f) : (x + 0.5f));
+}
+
 class File
 {
 	FILE *pFile;

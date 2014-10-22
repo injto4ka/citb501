@@ -70,6 +70,40 @@ inline void SetColor(DWORD color)
 	glColor4ubv(INT_TO_BYTE(color));
 }
 
+class Transform
+{
+public:
+	GLint view[4];
+	GLdouble model[16],project[16];
+	void Update()
+	{
+		glGetIntegerv(GL_VIEWPORT, view);
+		glGetDoublev(GL_MODELVIEW_MATRIX, model);
+		glGetDoublev(GL_PROJECTION_MATRIX, project);
+	}
+	ErrorCode GetObjectCoor(double winX, double winY, double winZ, double &objX, double &objY, double &objZ)
+	{
+		gluUnProject(
+			winX, winY, winZ,
+			model, project, view,
+			&objX, &objY, &objZ);
+		return glErrorToStr();
+	}
+	ErrorCode GetWindowCoor(double objX, double objY, double objZ, double &winX, double &winY, double &winZ)
+	{
+		gluProject(
+			objX, objY, objZ,
+			model, project, view,
+			&winX, &winY, &winZ);
+		return glErrorToStr();
+	}
+	ErrorCode GetWindowDepth(LONG winX, LONG winY, double &winZ)
+	{
+		glReadPixels(winX, winY, 1, 1, GL_DEPTH_COMPONENT, GL_DOUBLE, &winZ);
+		return glErrorToStr();
+	}
+};
+
 class Image
 {
 	std::vector<char> m_vBuffer;

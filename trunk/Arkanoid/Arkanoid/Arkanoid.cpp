@@ -63,9 +63,15 @@ GLenum uFogMode = GL_EXP;
 GLenum uFogQuality = GL_DONT_CARE;
 BOOL bKeys[256] = {0};
 std::deque<Input> dInput;
-CriticalSection csInput;
+CriticalSection csInput, csShared;
 Timer timer;
 DisplayList dlBall;
+Transform transform;
+float
+	fPlaneZ = -5.0f,
+	fBallX = 0, fBallY = 0, fBallZ = 0,
+	fFrameX = -1.0f, fFrameY = -1.0f, fFrameZ = 0.0f;
+int nMouseX = -1, nMouseY = -1;
 
 #define Message(fmt, ...) Message(hWnd, fmt, __VA_ARGS__)
 
@@ -92,7 +98,7 @@ BOOL ReadImage(Image &image, const char *pchFilename)
 
 void Update()
 {
-	if( dInput.size() > 0 )
+	while( dInput.size() > 0 )
 	{
 		Input input;
 		{
@@ -102,31 +108,44 @@ void Update()
 		}
 		switch(input.eType)
 		{
-		case InputKey:
-			const Keyboard &keyboard = input.keyboard;
-			bKeys[keyboard.code] = keyboard.pressed;
-			if( !keyboard.repeated && keyboard.pressed )
+			case InputMouse:
 			{
-				switch( keyboard.code )
+				const Mouse &mouse = input.mouse;
+				if( mouse.lbutton )
 				{
-				case VK_F11:
-					ToggleFullscreen();
-					break;
-				case VK_F4:
-					Terminate();
-					break;
-				case VK_LEFT:
-					Print("LEFT\n");
-					break;
-				case VK_RIGHT:
-					Print("RIGHT\n");
-					break;
-				case VK_UP:
-					Print("UP\n");
-					break;
-				case VK_DOWN:
-					Print("DOWN\n");
-					break;
+					Lock lock(csShared);
+					nMouseX = mouse.x;
+					nMouseY = mouse.y;
+				}
+				break;
+			}
+			case InputKey:
+			{
+				const Keyboard &keyboard = input.keyboard;
+				bKeys[keyboard.code] = keyboard.pressed;
+				if( !keyboard.repeated && keyboard.pressed )
+				{
+					switch( keyboard.code )
+					{
+					case VK_F11:
+						ToggleFullscreen();
+						break;
+					case VK_F4:
+						Terminate();
+						break;
+					case VK_LEFT:
+						Print("LEFT\n");
+						break;
+					case VK_RIGHT:
+						Print("RIGHT\n");
+						break;
+					case VK_UP:
+						Print("UP\n");
+						break;
+					case VK_DOWN:
+						Print("DOWN\n");
+						break;
+					}
 				}
 			}
 		}
@@ -141,10 +160,31 @@ void Draw2D()
 
 void Draw3D()
 {
-	glTranslatef(0, 0, -5.0f);
+	glTranslatef(0, 0, fPlaneZ);
+
+	if( nMouseY >= 0 )
+	{
+		Lock lock(csShared);
+		int wx = nMouseX;
+		int wy = nWinHeight - nMouseY;
+		double dWinX, dWinY, dDepthZ, dFrameX, dFrameY, dFrameZ;
+		transform.Update();
+		transform.GetWindowCoor(0, 0, 0, dWinX, dWinY, dDepthZ);
+		transform.GetObjectCoor((double)wx, (double)wy, dDepthZ, dFrameX, dFrameY, dFrameZ);
+		fFrameX = (float)dFrameX;
+		fFrameY = (float)dFrameY;
+		fFrameZ = (float)dFrameZ;
+		nMouseX = -1;
+		nMouseY = -1;
+	}
+
+	glPushMatrix();
+	glTranslatef(fBallX, fBallY, fBallZ);
 	tTexture.Bind();
 	dlBall.Execute();
-	DrawFrame(-1.0f, -1.0f, -1.0f);
+	glPopMatrix();
+
+	DrawFrame(fFrameX, fFrameY, fFrameZ);
 }
 
 void Draw()
@@ -160,7 +200,7 @@ void Draw()
 	glEnable(GL_LIGHTING);
 	glEnable(GL_TEXTURE_2D); // Enable Texture Mapping
 	glDisable(GL_COLOR_MATERIAL);
-	glEnable(GL_FOG); // Enables fog
+	//glEnable(GL_FOG); // Enables fog
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity ();
 	gluPerspective (fPerspAngle,
