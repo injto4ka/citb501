@@ -1,4 +1,5 @@
 #include "utils.h"
+#include <time.h>
 
 #pragma warning(disable:4996)
 
@@ -74,4 +75,22 @@ void SetThreadName(LPCSTR name, DWORD threadID)
 	{
 	}
 }
+
+int Random(int nMin, int nMax)
+{
+	return nMin + Random(nMax - nMin + 1);
+}
+
+int Random(int nRange)
+{
+	return nRange ? rand() % nRange : 0;
+}
+
+void InitRandGen()
+{
+	srand((UINT)time(NULL));
+}
+
+
+
 
