@@ -515,6 +515,8 @@ static DWORD WINAPI UpdateProc(void * param)
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLine, int nCmdShow)
 {
+	InitRandGen();
+
 	hInst = hInstance;
 	pchCmdLine = lpCmdLine;
 	nShow = nCmdShow;

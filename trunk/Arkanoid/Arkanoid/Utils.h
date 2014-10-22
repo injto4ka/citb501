@@ -19,7 +19,12 @@
 
 void Print(char *fmt, ...);
 void Message(HWND hWnd, char *fmt, ...);
+
 void SetThreadName(LPCSTR name, DWORD threadID = -1);
+
+int Random(int nMin, int nMax);
+int Random(int nRange);
+void InitRandGen();
 
 class File
 {
