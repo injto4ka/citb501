@@ -65,6 +65,7 @@ BOOL bKeys[256] = {0};
 std::deque<Input> dInput;
 CriticalSection csInput;
 Timer timer;
+DisplayList dlBall;
 
 #define Message(fmt, ...) Message(hWnd, fmt, __VA_ARGS__)
 
@@ -140,7 +141,7 @@ void Draw2D()
 void Draw3D()
 {
 	tTexture.Bind();
-	DrawSphere(0.5f);
+	dlBall.Execute();
 }
 
 void Draw()
@@ -197,6 +198,11 @@ void Load()
 		tTexture.mipmapped = TRUE;
 		if( !tTexture.Create(imgTexture) )
 			Print("Error creating texture!");
+	}
+	if( !dlBall )
+	{
+		CompileDisplayList cds(dlBall);
+		DrawSphere(0.5f);
 	}
 	bLoaded = true;
 }
