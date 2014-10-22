@@ -90,7 +90,3 @@ void InitRandGen()
 {
 	srand((UINT)time(NULL));
 }
-
-
-
-

@@ -116,6 +116,7 @@ public:
 		if(!QueryPerformanceFrequency(&tmp))
 			return;
 		nCountsPerSecond = (__int64)tmp.QuadPart;
+		Restart();
 	}
 	float Time()
 	{
@@ -130,5 +131,37 @@ public:
 		nStartCounter = Count();
 	}
 };
+
+class Event
+{
+protected:
+	HANDLE m_handle;
+public:
+	Event(bool bManualReset = false, char *pEventName = 0)
+	{
+		m_handle = CreateEvent(0, bManualReset, false, pEventName);
+	}
+	~Event()
+	{
+		CloseHandle(m_handle);
+	}
+	bool IsSignaled() const
+	{
+		return WAIT_OBJECT_0 == ::WaitForSingleObject(m_handle, 0);
+	}
+	bool Wait(int timeout = -1) const
+	{
+		return WAIT_OBJECT_0 == ::WaitForSingleObject(m_handle, timeout == -1 ? INFINITE : timeout);
+	}
+	void Signal() const
+	{
+		SetEvent(m_handle);
+	}
+	void Reset() const
+	{
+		ResetEvent(m_handle);
+	}
+};
+
 
 #endif __UTILS_H_
