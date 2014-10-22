@@ -131,4 +131,67 @@ public:
 	int GetID() const { return id; }
 };
 
+class DisplayList
+{
+	GLuint m_uList; // Display List
+public:
+	DisplayList():m_uList(0){}
+	~DisplayList(){ Destroy(); }
+	BOOL Generate()
+	{
+		if( m_uList )
+			return TRUE;
+		m_uList = glGenLists(1);
+		GLenum eError = glGetError();
+		return !eError;
+	}
+	void Destroy()
+	{
+		if(m_uList)
+		{
+			glDeleteLists(m_uList, 1);
+			m_uList = 0;
+		}
+	}
+	BOOL Start()
+	{
+		if(!Generate())
+			return FALSE;
+		glNewList(m_uList, GL_COMPILE);
+		GLenum eError = glGetError();
+		return !eError;
+	}
+	BOOL End() const
+	{
+		if( !m_uList )
+			return FALSE;
+		glEndList();
+		GLenum eError = glGetError();
+		return !eError;
+	}
+	BOOL Execute() const
+	{
+		if( !m_uList )
+			return FALSE;
+		glCallList(m_uList);
+		return TRUE;
+	}
+	operator GLuint(){return m_uList;}
+};
+
+class CompileDisplayList
+{
+protected:
+	DisplayList &m_list;
+public:
+	CompileDisplayList(DisplayList &list):m_list(list)
+	{
+		m_list.Start();
+	}
+	~CompileDisplayList()
+	{
+		m_list.End();
+	}
+};
+
 #endif __GRAPHICS_H_

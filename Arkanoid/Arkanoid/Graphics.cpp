@@ -170,8 +170,8 @@ BOOL Texture::Create(const Image &image)
 	}
 	//GL_INVALID_VALUE
 
-	GLenum error = glGetError();
-	return error ? FALSE : TRUE;
+	GLenum eError = glGetError();
+	return !eError;
 }
 
 void Texture::Destroy()
@@ -188,8 +188,8 @@ BOOL Texture::Bind() const
 	if( id == -1 )
 		return FALSE;
 	glBindTexture(GL_TEXTURE_2D, id);
-	GLenum error = glGetError();
-	return error ? FALSE : TRUE;
+	GLenum eError = glGetError();
+	return !eError;
 }
 
 GLvoid DrawSphere(float R, int nDivs)
