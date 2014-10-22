@@ -62,6 +62,9 @@ void CreateLight(GLenum id, GLfloat *ambient, GLfloat *diffuse, GLfloat *positio
 void CreateFog(GLfloat start, GLfloat end, GLfloat *color, GLfloat density, GLuint func, GLenum quality);
 GLvoid DrawSphere(float R, int nDivs = 16);
 GLvoid DrawFrame(float x = 0, float y = 0, float z = 0, float r = 1.0f, float w = 1);
+GLvoid DrawLine(float x1 = 0, float y1 = 0, float z1 = 0, 
+				float x2 = 1, float y2 = 1, float z2 = 1,
+				int c = 0xffffffff, float w = 1);
 
 ErrorCode glErrorToStr();
 

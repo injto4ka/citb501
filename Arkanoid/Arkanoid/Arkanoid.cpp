@@ -18,7 +18,6 @@
 #	define WM_TOGGLEFULLSCREEN (WM_USER+1)									
 #endif
 
-
 BYTE nBpp = 32;				// Bits Per Pixel
 BYTE nDepth = 32;				// Number Of Bits For The Depth Buffer
 BYTE nStencil = 8;			// Number Of Bits For The Stencil Buffer
@@ -30,7 +29,6 @@ HDC hDC = NULL;   // Device Context
 HGLRC hRC = NULL; // Rendering Context
 BOOL bFullscreen = FALSE;
 BOOL bVisible = TRUE;
-BOOL bUpdated = TRUE; // Will force redraw
 LPTSTR pchName = "Arkanoid";
 LONG nLeft = 400, nLastLeft = 0;		// Left Position
 LONG nTop = 300, nLastTop = 0; 		// Top Position
@@ -59,6 +57,7 @@ GLfloat
 float fFogStart = 0.0f;
 float fFogEnd = 1.0f;
 float fFogDensity = 0.08f;
+float fLastDrawTime = 0;
 GLenum uFogMode = GL_EXP;
 GLenum uFogQuality = GL_DONT_CARE;
 BOOL bKeys[256] = {0};
@@ -70,8 +69,11 @@ Transform transform;
 float
 	fPlaneZ = -5.0f,
 	fBallX = 0, fBallY = 0, fBallZ = 0,
-	fFrameX = -1.0f, fFrameY = -1.0f, fFrameZ = 0.0f;
+	fBallX0 = 0, fBallY0 = 0,
+	fFrameX = -1.0f, fFrameY = -1.0f, fFrameZ = 0.0f,
+	fBallSpeed = 0.5f, fTravelTime = 0;
 int nMouseX = -1, nMouseY = -1;
+Event evInput;
 
 #define Message(fmt, ...) Message(hWnd, fmt, __VA_ARGS__)
 
@@ -150,7 +152,6 @@ void Update()
 			}
 		}
 	}
-	bUpdated = TRUE;
 }
 
 void Draw2D()
@@ -164,9 +165,12 @@ void Draw3D()
 
 	if( nMouseY >= 0 )
 	{
-		Lock lock(csShared);
-		int wx = nMouseX;
-		int wy = nWinHeight - nMouseY;
+		int wx, wy;
+		{
+			Lock lock(csShared);
+			wx = nMouseX;
+			wy = nWinHeight - nMouseY;
+		}
 		double dWinX, dWinY, dDepthZ, dFrameX, dFrameY, dFrameZ;
 		transform.Update();
 		transform.GetWindowCoor(0, 0, 0, dWinX, dWinY, dDepthZ);
@@ -174,17 +178,29 @@ void Draw3D()
 		fFrameX = (float)dFrameX;
 		fFrameY = (float)dFrameY;
 		fFrameZ = (float)dFrameZ;
-		nMouseX = -1;
-		nMouseY = -1;
 	}
+
+	float time = timer.Time();
+	float dx = fFrameX - fBallX, dy = fFrameY - fBallY, fDist2 = dx*dx + dy*dy;
+	if( fDist2 > 1e-6f )
+	{
+		float fDist = sqrtf(fDist2);
+		float fTravelTime = fDist / fBallSpeed;
+		float dt = min(fTravelTime, time - fLastDrawTime);
+		float progress = dt / fTravelTime;
+		fBallX += (fFrameX - fBallX) * progress;
+		fBallY += (fFrameY - fBallY) * progress;
+	}
+	fLastDrawTime = time;
+
+	DrawLine(fFrameX, fFrameY, fFrameZ, fBallX, fBallY, fBallZ, 0xff00ffff);
+	DrawFrame(fFrameX, fFrameY, fFrameZ);
 
 	glPushMatrix();
 	glTranslatef(fBallX, fBallY, fBallZ);
 	tTexture.Bind();
 	dlBall.Execute();
 	glPopMatrix();
-
-	DrawFrame(fFrameX, fFrameY, fFrameZ);
 }
 
 void Draw()
@@ -252,7 +268,6 @@ void Load()
 
 void Redraw()
 {
-	bUpdated = FALSE;
 	Draw();
 	SwapBuffers(hDC);
 }
@@ -425,6 +440,13 @@ BOOL DestroyWindow()
 	return TRUE;														// Return True
 }
 
+void OnNewInput(const Input &input)
+{
+	Lock lock(csInput);
+	dInput.push_back(input);
+	evInput.Signal();
+}
+
 LRESULT CALLBACK WinProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	switch (uMsg)
@@ -489,10 +511,7 @@ LRESULT CALLBACK WinProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		{
 			Input input = {uMsg, InputChar};
 			input.nSymbol = (SHORT)wParam;
-			{
-				Lock lock(csInput);
-				dInput.push_back(input);
-			}
+			OnNewInput(input);
 			return 0;
 		}
 		case WM_SYSKEYDOWN:
@@ -508,10 +527,7 @@ LRESULT CALLBACK WinProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			input.keyboard.alt = GET_BIT((DWORD)lParam, 29);
 			input.keyboard.repeated = GET_BIT((DWORD)lParam, 30);
 			input.keyboard.pressed = !GET_BIT((DWORD)lParam, 31);
-			{
-				Lock lock(csInput);
-				dInput.push_back(input);
-			}
+			OnNewInput(input);
 			return 0;
 		}
 		case WM_MOUSEMOVE:
@@ -536,10 +552,7 @@ LRESULT CALLBACK WinProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			input.mouse.rbutton = (wParam&MK_RBUTTON) != 0;
 			input.mouse.shift = (wParam&MK_SHIFT) != 0;
 			input.mouse.ctrl = (wParam&MK_CONTROL) != 0;
-			{
-				Lock lock(csInput);
-				dInput.push_back(input);
-			}
+			OnNewInput(input);
 			return 0;
 		}
 	}
@@ -555,7 +568,7 @@ static DWORD WINAPI UpdateProc(void * param)
 	while (bIsProgramLooping)
 	{
 		Update();
-		Sleep(10);
+		evInput.Wait(30);
 	}
 
 	CloseHandle(hThread);
@@ -611,7 +624,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLin
 				for(;;)
 				{
 					MSG msg; // Message Info
-					if (PeekMessage (&msg, hWnd, 0, 0, PM_REMOVE) != 0)
+					if(PeekMessage(&msg, hWnd, 0, 0, PM_REMOVE) != 0)
 					{
 						if (msg.message == WM_QUIT)
 							break;
@@ -619,11 +632,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLin
 						DispatchMessage(&msg);
 						continue;
 					}
-					if( bUpdated )
+					if( bVisible )
 					{
-						bUpdated = FALSE;
-						Draw();
-						SwapBuffers(hDC);
+						Redraw();
 					}
 					else if(bAllowSleep)
 					{
