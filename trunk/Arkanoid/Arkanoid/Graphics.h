@@ -61,7 +61,14 @@ void SetMemAlign(int nMemWidth, BOOL bPack);
 void CreateLight(GLenum id, GLfloat *ambient, GLfloat *diffuse, GLfloat *position);
 void CreateFog(GLfloat start, GLfloat end, GLfloat *color, GLfloat density, GLuint func, GLenum quality);
 GLvoid DrawSphere(float R, int nDivs = 16);
+GLvoid DrawFrame(float x = 0, float y = 0, float z = 0, float r = 1.0f, float w = 1);
+
 ErrorCode glErrorToStr();
+
+inline void SetColor(DWORD color)
+{
+	glColor4ubv(INT_TO_BYTE(color));
+}
 
 class Image
 {

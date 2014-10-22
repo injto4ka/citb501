@@ -205,6 +205,50 @@ ErrorCode Texture::Bind() const
 	return glErrorToStr();
 }
 
+GLvoid DrawFrame(float x, float y, float z, float r, float w)
+{
+	glPushAttrib(GL_TRANSFORM_BIT);
+	glMatrixMode(GL_MODELVIEW);
+	glPushMatrix();
+	glTranslatef(x, y, z);
+
+	glPushAttrib(GL_ENABLE_BIT);
+	glDisable(GL_DEPTH_TEST);
+	glDisable(GL_LIGHTING);
+	glDisable(GL_TEXTURE_2D);
+
+	glPushAttrib(GL_LINE_BIT);
+	glLineWidth(w);
+
+	glPushAttrib(GL_HINT_BIT);
+	glEnable(GL_LINE_SMOOTH);
+	glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+
+	glPushAttrib(GL_COLOR_BUFFER_BIT);
+	
+	glBegin(GL_LINES);
+		// X in Red
+		SetColor(0xff0000ff);
+		glVertex3f( 0, 0, 0);
+		glVertex3f( r, 0, 0);
+		// Y in Green
+		SetColor(0xff00ff00);
+		glVertex3f( 0, 0, 0);
+		glVertex3f( 0, r, 0);
+		// Z in Blue
+		SetColor(0xffff0000);
+		glVertex3f( 0, 0, 0);
+		glVertex3f( 0, 0, r);
+	glEnd();
+
+	glPopAttrib(); // GL_COLOR_BUFFER_BIT
+	glPopAttrib(); // GL_HINT_BIT
+	glPopAttrib(); // GL_LINE_BIT
+	glPopAttrib(); // GL_ENABLE_BIT
+	glPopMatrix();
+	glPopAttrib(); // GL_TRANSFORM_BIT
+}
+
 GLvoid DrawSphere(float R, int nDivs)
 {
 	if(R < 0 || nDivs <= 0)
