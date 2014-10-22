@@ -83,9 +83,10 @@ void ToggleFullscreen()
 
 BOOL ReadImage(Image &image, const char *pchFilename)
 {
-	if( image.ReadTGA(pchFilename) )
+	ErrorCode err = image.ReadTGA(pchFilename);
+	if( !err )
 		return TRUE;
-	Print("Error reading image %s!", pchFilename);
+	Print("Error reading image '%s': %s", pchFilename, err);
 	return FALSE;
 }
 
@@ -196,8 +197,9 @@ void Load()
 		tTexture.minFilter = GL_LINEAR_MIPMAP_NEAREST;
 		tTexture.magFilter = GL_LINEAR;
 		tTexture.mipmapped = TRUE;
-		if( !tTexture.Create(imgTexture) )
-			Print("Error creating texture!");
+		ErrorCode err = tTexture.Create(imgTexture);
+		if( err )
+			Print("Error creating texture: %s", err);
 	}
 	if( !dlBall )
 	{

@@ -1,7 +1,21 @@
 #include "graphics.h"
-#include "utils.h"
 
 #pragma warning(disable:4996)
+
+ErrorCode glErrorToStr()
+{
+	switch(glGetError())
+	{
+		case GL_NO_ERROR:			return NULL;
+		case GL_INVALID_ENUM:		return "An unacceptable value is specified for an enumerated argument. The offending function is ignored, having no side effect other than to set the error flag.";
+		case GL_INVALID_VALUE:		return "A numeric argument is out of range. The offending function is ignored, having no side effect other than to set the error flag.";
+		case GL_INVALID_OPERATION:	return "The specified operation is not allowed in the current state. The offending function is ignored, having no side effect other than to set the error flag.";
+		case GL_STACK_OVERFLOW:		return "This function would cause a stack overflow. The offending function is ignored, having no side effect other than to set the error flag.";
+		case GL_STACK_UNDERFLOW:	return "This function would cause a stack underflow. The offending function is ignored, having no side effect other than to set the error flag.";
+		case GL_OUT_OF_MEMORY:		return "There is not enough memory left to execute the function. The state of OpenGL is undefined, except for the state of the error flags, after this error is recorded.";
+		default:					return "Unknown error.";
+	}
+}
 
 void SetMemAlign(int nMemWidth, BOOL bPack)
 {
@@ -95,27 +109,28 @@ void Image::FlipC()
 }
 
 // Read TGA format rgb or rgba image
-BOOL Image::ReadTGA(FILE* fp)
+ErrorCode Image::ReadTGA(FILE* fp)
 {
 	TGAHeader header;
-	if(	!fp ||
-		!fread(&header, sizeof(TGAHeader), 1, fp) ||
-		header.m_iImageTypeCode != 2 ||
-		!SetSize(header.m_iWidth, header.m_iHeight, header.m_iBPP / 8))
-		return FALSE;
+	if(	!fp || !fread(&header, sizeof(TGAHeader), 1, fp) )
+		return "Failed to read the image header!";
+	if( header.m_iImageTypeCode != 2 || !SetSize(header.m_iWidth, header.m_iHeight, header.m_iBPP / 8))
+		return "Unsupported image format!";
 	if( !fread(GetDataPtr(), 1, GetDataSize(), fp) )
-			return FALSE;
+		return "Failed to read the image data!";
 	if(GET_BIT(header.m_ImageDescriptorByte, 5))
 		FlipV();
 	// flip red and blue components
 	FlipC();
-	return TRUE; 
+	return NULL; 
 }
 
-BOOL Image::ReadTGA(const char *pchFileName)
+ErrorCode Image::ReadTGA(const char *pchFileName)
 {
 	File file;
-	return (file.Open(pchFileName)) ? ReadTGA(file) : FALSE;
+	if( !file.Open(pchFileName) )
+		return "Failed to open the file!";
+	return ReadTGA(file);
 }
 
 void Image::Draw(float x, float y)
@@ -127,11 +142,11 @@ void Image::Draw(float x, float y)
 	glDrawPixels(m_uWidth, m_uHeight, GetPixelFormat(), GL_UNSIGNED_BYTE, GetDataPtr());
 }
 
-BOOL Texture::Create(const Image &image)
+ErrorCode Texture::Create(const Image &image)
 {
 	Destroy();
 	if(!image.GetDataSize())
-		return FALSE;
+		return "No image data!";
 	GLuint format = image.GetPixelFormat();
 	GLint width = image.GetWidth();
 	GLint height = image.GetHeight();
@@ -170,8 +185,7 @@ BOOL Texture::Create(const Image &image)
 	}
 	//GL_INVALID_VALUE
 
-	GLenum eError = glGetError();
-	return !eError;
+	return glErrorToStr();
 }
 
 void Texture::Destroy()
@@ -183,13 +197,12 @@ void Texture::Destroy()
 	}
 }
 
-BOOL Texture::Bind() const
+ErrorCode Texture::Bind() const
 {
 	if( id == -1 )
-		return FALSE;
+		return "No texture generated!";
 	glBindTexture(GL_TEXTURE_2D, id);
-	GLenum eError = glGetError();
-	return !eError;
+	return glErrorToStr();
 }
 
 GLvoid DrawSphere(float R, int nDivs)

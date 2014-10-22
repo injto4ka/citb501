@@ -17,6 +17,8 @@
 #define INT_TO_BYTE(color) ((BYTE*)(&(color)))
 #define BOOL_TO_STR(boolean) ((boolean) ? "true" : "false")
 
+typedef const char* ErrorCode;
+
 void Print(char *fmt, ...);
 void Message(HWND hWnd, char *fmt, ...);
 
