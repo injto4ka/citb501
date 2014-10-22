@@ -7,6 +7,8 @@
 #include <gl/gl.h>									// Header File For The OpenGL32 Library
 #include <gl/glu.h>									// Header File For The GLu32 Library
 
+#include "utils.h"
+
 enum RGB_COMPS
 {
 	RED, 
@@ -59,6 +61,7 @@ void SetMemAlign(int nMemWidth, BOOL bPack);
 void CreateLight(GLenum id, GLfloat *ambient, GLfloat *diffuse, GLfloat *position);
 void CreateFog(GLfloat start, GLfloat end, GLfloat *color, GLfloat density, GLuint func, GLenum quality);
 GLvoid DrawSphere(float R, int nDivs = 16);
+ErrorCode glErrorToStr();
 
 class Image
 {
@@ -82,8 +85,8 @@ public:
 	void FlipC();
 
 	// Read TGA format rgb or rgba image
-	BOOL ReadTGA(FILE* fp);
-	BOOL ReadTGA(const char *pchFileName);
+	ErrorCode ReadTGA(FILE* fp);
+	ErrorCode ReadTGA(const char *pchFileName);
 
 	GLuint GetPixelFormat() const
 	{
@@ -125,9 +128,9 @@ public:
 		childs(3), data(NULL), dataFormat(GL_UNSIGNED_BYTE), format(GL_RGB)
 	{}
 	~Texture() { Destroy(); }
-	BOOL Create(const Image &image);
+	ErrorCode Create(const Image &image);
 	void Destroy();
-	BOOL Bind() const;
+	ErrorCode Bind() const;
 	int GetID() const { return id; }
 };
 
@@ -137,13 +140,12 @@ class DisplayList
 public:
 	DisplayList():m_uList(0){}
 	~DisplayList(){ Destroy(); }
-	BOOL Generate()
+	ErrorCode Generate()
 	{
 		if( m_uList )
-			return TRUE;
+			return NULL;
 		m_uList = glGenLists(1);
-		GLenum eError = glGetError();
-		return !eError;
+		return glErrorToStr();
 	}
 	void Destroy()
 	{
@@ -153,28 +155,25 @@ public:
 			m_uList = 0;
 		}
 	}
-	BOOL Start()
+	ErrorCode Start()
 	{
-		if(!Generate())
-			return FALSE;
+		ErrorCode err = Generate();
+		if(err)
+			return err;
 		glNewList(m_uList, GL_COMPILE);
-		GLenum eError = glGetError();
-		return !eError;
+		return glErrorToStr();
 	}
-	BOOL End() const
+	ErrorCode End() const
 	{
 		if( !m_uList )
 			return FALSE;
 		glEndList();
-		GLenum eError = glGetError();
-		return !eError;
+		return glErrorToStr();
 	}
-	BOOL Execute() const
+	void Execute() const
 	{
-		if( !m_uList )
-			return FALSE;
-		glCallList(m_uList);
-		return TRUE;
+		if( m_uList )
+			glCallList(m_uList);
 	}
 	operator GLuint(){return m_uList;}
 };
