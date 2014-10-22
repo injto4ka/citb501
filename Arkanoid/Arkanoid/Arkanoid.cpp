@@ -141,8 +141,10 @@ void Draw2D()
 
 void Draw3D()
 {
+	glTranslatef(0, 0, -5.0f);
 	tTexture.Bind();
 	dlBall.Execute();
+	DrawFrame(-1.0f, -1.0f, -1.0f);
 }
 
 void Draw()
@@ -167,7 +169,6 @@ void Draw()
 					fPerspFarZ);
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
-	glTranslatef(0, 0, -5.0f);
 	Draw3D();
 	glPopAttrib();
 
