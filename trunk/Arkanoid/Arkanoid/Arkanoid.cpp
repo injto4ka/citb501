@@ -71,8 +71,9 @@ float
 	fBallX = 0, fBallY = 0, fBallZ = 0,
 	fBallX0 = 0, fBallY0 = 0,
 	fFrameX = -1.0f, fFrameY = -1.0f, fFrameZ = 0.0f,
-	fBallSpeed = 0.5f, fTravelTime = 0;
-int nMouseX = -1, nMouseY = -1;
+	fBallSpeed = 0.5f;
+volatile int nNewWinX = -1, nNewWinY = -1;
+
 Event evInput;
 
 #define Message(fmt, ...) Message(hWnd, fmt, __VA_ARGS__)
@@ -116,8 +117,8 @@ void Update()
 				if( mouse.lbutton )
 				{
 					Lock lock(csShared);
-					nMouseX = mouse.x;
-					nMouseY = mouse.y;
+					nNewWinX = mouse.x;
+					nNewWinY = nWinHeight - mouse.y;
 				}
 				break;
 			}
@@ -163,18 +164,19 @@ void Draw3D()
 {
 	glTranslatef(0, 0, fPlaneZ);
 
-	if( nMouseY >= 0 )
+	if( nNewWinY >= 0 )
 	{
-		int wx, wy;
+		int nWinX, nWinY;
 		{
 			Lock lock(csShared);
-			wx = nMouseX;
-			wy = nWinHeight - nMouseY;
+			nWinX = nNewWinX;
+			nWinY = nNewWinY;
 		}
-		double dWinX, dWinY, dDepthZ, dFrameX, dFrameY, dFrameZ;
+
+		double dWinX0, dWinY0, dDepthZ, dFrameX, dFrameY, dFrameZ;
 		transform.Update();
-		transform.GetWindowCoor(0, 0, 0, dWinX, dWinY, dDepthZ);
-		transform.GetObjectCoor((double)wx, (double)wy, dDepthZ, dFrameX, dFrameY, dFrameZ);
+		transform.GetWindowCoor(0, 0, 0, dWinX0, dWinY0, dDepthZ);
+		transform.GetObjectCoor((double)nWinX, (double)nWinY, dDepthZ, dFrameX, dFrameY, dFrameZ);
 		fFrameX = (float)dFrameX;
 		fFrameY = (float)dFrameY;
 		fFrameZ = (float)dFrameZ;
@@ -184,12 +186,26 @@ void Draw3D()
 	float dx = fFrameX - fBallX, dy = fFrameY - fBallY, fDist2 = dx*dx + dy*dy;
 	if( fDist2 > 1e-6f )
 	{
+		// Interpolate the ball position towards the target position
 		float fDist = sqrtf(fDist2);
 		float fTravelTime = fDist / fBallSpeed;
-		float dt = min(fTravelTime, time - fLastDrawTime);
-		float progress = dt / fTravelTime;
-		fBallX += (fFrameX - fBallX) * progress;
-		fBallY += (fFrameY - fBallY) * progress;
+		float dt = time - fLastDrawTime;
+		if( dt > fTravelTime )
+		{
+			fBallX = fFrameX;
+			fBallY = fFrameY;
+		}
+		else
+		{
+			float progress = dt / fTravelTime;
+			fBallX += (fFrameX - fBallX) * progress;
+			fBallY += (fFrameY - fBallY) * progress;
+		}
+	}
+	else
+	{
+		fBallX = fFrameX;
+		fBallY = fFrameY;
 	}
 	fLastDrawTime = time;
 
