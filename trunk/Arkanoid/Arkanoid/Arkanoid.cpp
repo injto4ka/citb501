@@ -232,7 +232,7 @@ void Draw()
 	glEnable(GL_LIGHTING);
 	glEnable(GL_TEXTURE_2D); // Enable Texture Mapping
 	glDisable(GL_COLOR_MATERIAL);
-	//glEnable(GL_FOG); // Enables fog
+	glEnable(GL_FOG); // Enables fog
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity ();
 	gluPerspective (fPerspAngle,
@@ -300,6 +300,9 @@ BOOL glCreate()
 	glDepthFunc(GL_LEQUAL);
 	// Really Nice Perspective Calculations
 	glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+
+	glPolygonMode( GL_BACK, GL_FILL ); // Back Face Is Filled In
+	glPolygonMode( GL_FRONT, GL_FILL ); // Front Face Is Drawn With Lines
 
 	// Create light 1
 	CreateLight(GL_LIGHT1, pLightAmbient, pLightDiffuse, pLightPosition);
