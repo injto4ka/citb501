@@ -72,7 +72,9 @@ float
 	fBallX0 = 0, fBallY0 = 0,
 	fFrameX = -1.0f, fFrameY = -1.0f, fFrameZ = 0.0f,
 	fBallSpeed = 0.5f;
-volatile int nNewWinX = -1, nNewWinY = -1;
+volatile int nNewWinX = -1, nNewWinY = -1, nBallN = 16;
+volatile float fBallR = 0.5f;
+volatile bool bNewBall = false;
 
 Event evInput;
 
@@ -137,16 +139,36 @@ void Update()
 						Terminate();
 						break;
 					case VK_LEFT:
-						Print("LEFT\n");
+						if(fBallR > 0.1f)
+						{
+							Lock lock(csShared);
+							fBallR -= 0.1f;
+							bNewBall = true;
+						}
 						break;
 					case VK_RIGHT:
-						Print("RIGHT\n");
+						if(fBallR < 10.0f)
+						{
+							Lock lock(csShared);
+							fBallR += 0.1f;
+							bNewBall = true;
+						}
 						break;
 					case VK_UP:
-						Print("UP\n");
+						if(nBallN < 100)
+						{
+							Lock lock(csShared);
+							nBallN++;
+							bNewBall = true;
+						}
 						break;
 					case VK_DOWN:
-						Print("DOWN\n");
+						if(nBallN > 2)
+						{
+							Lock lock(csShared);
+							nBallN--;
+							bNewBall = true;
+						}
 						break;
 					}
 				}
@@ -162,6 +184,14 @@ void Draw2D()
 
 void Draw3D()
 {
+	if( !dlBall || bNewBall )
+	{
+		Lock lock(csShared);
+		CompileDisplayList cds(dlBall);
+		DrawSphere(fBallR, nBallN);
+		bNewBall = false;
+	}
+
 	glTranslatef(0, 0, fPlaneZ);
 
 	if( nNewWinY >= 0 )
@@ -273,11 +303,6 @@ void Load()
 		ErrorCode err = tTexture.Create(imgTexture);
 		if( err )
 			Print("Error creating texture: %s", err);
-	}
-	if( !dlBall )
-	{
-		CompileDisplayList cds(dlBall);
-		DrawSphere(0.5f);
 	}
 	bLoaded = true;
 }
