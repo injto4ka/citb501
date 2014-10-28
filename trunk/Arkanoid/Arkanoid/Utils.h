@@ -24,8 +24,19 @@ void Message(HWND hWnd, char *fmt, ...);
 
 void SetThreadName(LPCSTR name, DWORD threadID = -1);
 
-int Random(int nMin, int nMax);
-int Random(int nRange);
+inline int Random(int nRange)
+{
+	return nRange ? rand() % nRange : 0;
+}
+inline int Random(int nMin, int nMax)
+{
+	return nMin + Random(nMax - nMin + 1);
+}
+inline float Random(float fMin, float fMax)
+{
+	return fMin + (fMax - fMin) * rand() / RAND_MAX;
+}
+
 void InitRandGen();
 
 // FLOAT TO INT OPERATIONS:
