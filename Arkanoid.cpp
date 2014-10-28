@@ -1,13 +1,9 @@
 #include <windows.h>			// Windows API Definitions
+#include <stdio.h>
 #include <deque>
-
-#include <math.h>
+#include <vector>
 #include <gl/gl.h>									// Header File For The OpenGL32 Library
 #include <gl/glu.h>									// Header File For The GLu32 Library
-
-#include "utils.h"
-#include "graphics.h"
-#include "input.h"
 
 #pragma comment( lib, "opengl32.lib" )				// Search For OpenGL32.lib While Linking
 #pragma comment( lib, "glu32.lib" )					// Search For GLu32.lib While Linking
@@ -17,6 +13,225 @@
 #ifndef WM_TOGGLEFULLSCREEN							// Application Define Message For Toggling
 #	define WM_TOGGLEFULLSCREEN (WM_USER+1)									
 #endif
+
+#define MASK(start, end) ((~((~0L)<<((end)-(start)+1)))<<(start))
+#define GET_BIT(number, index) ((((number)>>(index))&1) == 1)
+#define SET_BIT(number, index, value) ((value) ? (number)|(1<<(index)) : (number)&(~(1<<(index))))
+#define SET_BITS(number, start, end, bits) (((number)&~MASK((start), (end)))|((bits)<<(start)))
+#define GET_BITS(number, start, end) (((number)&MASK((start), (end)))>>(start))
+
+#define INT_TO_BYTE(color) ((BYTE*)(&(color)))
+#define BOOL_TO_STR(boolean) ((boolean) ? "true" : "false")
+
+
+enum RGB_COMPS
+{
+	RED, 
+	GREEN, 
+	BLUE, 
+	ALPHA
+};
+
+/// the tga header (18 bytes!)
+#pragma pack(push,1) // turn off data boundary alignment
+struct TGAHeader
+{
+	// sometimes the tga file has a field with some custom info in. This 
+	// just identifies the size of that field. If it is anything other
+	// than zero, forget it.
+	unsigned char m_iIdentificationFieldSize;
+	// This field specifies if a colour map is present, 0-no, 1 yes...
+	unsigned char m_iColourMapType;
+	// only going to support RGB/RGBA/8bit - 2, colour mapped - 1
+	unsigned char m_iImageTypeCode;
+	// ignore this field....0
+	unsigned short m_iColorMapOrigin;
+	// size of the colour map
+	unsigned short m_iColorMapLength;
+	// bits per pixel of the colour map entries...
+	unsigned char m_iColourMapEntrySize;
+	// ignore this field..... 0
+	unsigned short m_iX_Origin;
+	// ignore this field..... 0
+	unsigned short m_iY_Origin;
+	// the image width....
+	unsigned short m_iWidth;
+	// the image height.... 
+	unsigned short m_iHeight;
+	// the bits per pixel of the image, 8,16,24 or 32
+	unsigned char m_iBPP;
+	// ignore this field.... 0
+	unsigned char m_ImageDescriptorByte;
+};
+#pragma pack(pop)
+
+#define PIXEL_COMP_OLD	0xFF
+#define PIXEL_COMP_GRAY	0x01
+#define PIXEL_COMP_RGB	0x03
+#define PIXEL_COMP_RGBA	0x04
+
+void SetMemAlign(int nMemWidth, BOOL bPack)
+{
+	if(nMemWidth <= 0)
+		return;
+	for(GLint nAlign = 8;;nAlign >>= 1)
+	{
+		if(nAlign == 1 || nMemWidth % nAlign == 0)
+		{
+			glPixelStorei(bPack ? GL_PACK_ALIGNMENT : GL_UNPACK_ALIGNMENT, nAlign);
+			return;
+		}
+	}
+}
+
+class File
+{
+	FILE *pFile;
+	int nId;
+public:
+	File():pFile(NULL), nId(-1) {}
+	~File() { Close(); }
+	BOOL Open(const char *pchFileName, const char *pchMode = "rb")
+	{
+		Close();
+		if(pchFileName && pchMode)
+		{
+			pFile = fopen(pchFileName, pchMode);
+			if(pFile)
+			{
+				nId = _fileno(pFile);
+				return TRUE;
+			}
+		}
+		return FALSE;
+	}
+	void Close()
+	{
+		if(!pFile)
+			return;
+		fclose(pFile);
+		pFile = NULL;
+		nId = -1;
+	}
+	int Descript() const
+	{
+		return nId;
+	}
+	operator FILE*(){ return pFile; }
+	operator int(){ return nId; }
+};
+
+#define REPLACE(a,b) (a)^=(b)^=(a)^=(b)
+
+class Image
+{
+	std::vector<char> vBuffer;
+public:
+	WORD uWidth, uHeight;
+	BYTE uComps;
+
+	Image():uWidth(0),uHeight(0),uComps(PIXEL_COMP_RGB){}
+
+	char *GetDataPtr() { return vBuffer.size() > 0 ? &vBuffer[0] : NULL; }
+	size_t GetDataSize() const { return vBuffer.size(); }
+	WORD GetWidth() const { return uWidth; }
+	WORD GetHeight() const { return uHeight; }
+	BYTE GetComp() const { return uComps; }
+	
+	BOOL SetSize(int nNewWidth, int nNewHeight, int nNewComp = PIXEL_COMP_RGB)
+	{
+		if(nNewWidth <= 0 || nNewHeight <= 0 ||
+			nNewComp != PIXEL_COMP_GRAY && nNewComp != PIXEL_COMP_RGB && nNewComp != PIXEL_COMP_RGBA)
+			return FALSE;
+		vBuffer.resize(nNewWidth * nNewHeight * nNewComp);
+		uComps = nNewComp;
+		uWidth = nNewWidth;
+		uHeight = nNewHeight;
+		return TRUE;
+	}
+	void Clear()
+	{
+		vBuffer.clear();
+	}
+	void FlipV()
+	{
+		char *pData = GetDataPtr();
+		const int my = uHeight/2, B = uComps * uWidth, D = (uHeight - 1) * B;
+		for(int i = 0 ; i < uWidth; i++)
+		{
+			const int A = uComps * i, C = A + D;
+			for(int j = 0; j < my; j++)
+			{
+				const int p1 = A + j * B, p2 = C - j * B;
+				switch(uComps)
+				{
+				case PIXEL_COMP_RGBA:
+					REPLACE(pData[p1+3], pData[p2+3]);
+				case PIXEL_COMP_RGB:
+					REPLACE(pData[p1+2], pData[p2+2]);
+					REPLACE(pData[p1+1], pData[p2+1]);
+				case PIXEL_COMP_GRAY:
+					REPLACE(pData[p1], pData[p2]);
+				}
+			}
+		}
+	}
+	// Read TGA format rgb or rgba image
+	BOOL ReadTGA(FILE* fp)
+	{
+		TGAHeader header;
+		if(	!fp ||
+			!fread(&header, sizeof(TGAHeader), 1, fp) ||
+			header.m_iImageTypeCode != 2 ||
+			!SetSize(header.m_iWidth, header.m_iHeight, header.m_iBPP / 8))
+			return FALSE;
+		if( !fread(GetDataPtr(), 1, GetDataSize(), fp) )
+				return FALSE;
+		if(GET_BIT(header.m_ImageDescriptorByte, 5))
+			FlipV();
+		return TRUE; 
+	}
+	BOOL ReadTGA(const char *pchFileName)
+	{
+		File file;
+		return (file.Open(pchFileName)) ? ReadTGA(file) : FALSE;
+	}
+	GLuint GetPixelFormat() const
+	{
+		switch(uComps)
+		{
+		case PIXEL_COMP_RGBA:
+			return GL_RGBA;
+		case PIXEL_COMP_RGB:
+			return GL_RGB;
+		default:
+			return GL_LUMINANCE;
+		}
+	}
+	void Draw(float x, float y)
+	{
+		if(!uWidth)
+			return;
+		SetMemAlign(uWidth, FALSE);
+		glRasterPos2f(x, y);
+		glDrawPixels(uWidth, uHeight, GetPixelFormat(), GL_UNSIGNED_BYTE, GetDataPtr());
+	}
+};
+
+void Print(char *fmt, ...)
+{
+	if (fmt  ==  NULL)
+		return;
+	char text[1024];
+	va_list ap;
+	va_start(ap, fmt);
+		_vsnprintf(text, 1024, fmt, ap);
+	va_end(ap);
+	static BOOL s_bIsDebuggerPresent = IsDebuggerPresent();
+	if(s_bIsDebuggerPresent)
+		OutputDebugString(text);
+	printf(text);
+}
 
 BYTE nBpp = 32;				// Bits Per Pixel
 BYTE nDepth = 32;				// Number Of Bits For The Depth Buffer
@@ -29,14 +244,12 @@ HDC hDC = NULL;   // Device Context
 HGLRC hRC = NULL; // Rendering Context
 BOOL bFullscreen = FALSE;
 BOOL bVisible = TRUE;
+BOOL bUpdated = 0;
 LPTSTR pchName = "Arkanoid";
 LONG nLeft = 400, nLastLeft = 0;		// Left Position
 LONG nTop = 300, nLastTop = 0; 		// Top Position
 LONG nWinWidth = 800;
 LONG nWinHeight = 600;
-float fPerspAngle = 45;
-float fPerspNearZ = 0.01f;
-float fPerspFarZ = 100.0f;
 RECT rect; 		      // oustide borders
 DWORD nStyle = 0;
 DWORD nExtStyle = 0;
@@ -46,37 +259,22 @@ BOOL bIsProgramLooping = TRUE;
 BOOL bCreateFullScreen = FALSE;
 LONG nDisplayWidth = 800;
 LONG nDisplayHeight = 600; 
+int nClearColor = 0xffffffff;
 bool bLoaded = false;
-Image imgBall, imgTexture;
-Texture tTexture;
-GLfloat
-	pLightAmbient[]= { 0.5f, 0.5f, 0.5f, 1.0f }, // Ambient Light Values
-	pLightDiffuse[]= { 1.0f, 1.0f, 1.0f, 1.0f }, // Diffuse Light Values
-	pLightPosition[]= { 0.0f, 1.0f, 1.0f, 0.0f }, // Light Position
-	pFogColor[]= {0.0f, 0.0f, 0.0f, 1.0f}; // Fog Color
-float fFogStart = 0.0f;
-float fFogEnd = 1.0f;
-float fFogDensity = 0.08f;
-float fLastDrawTime = 0;
-GLenum uFogMode = GL_EXP;
-GLenum uFogQuality = GL_DONT_CARE;
-BOOL bKeys[256] = {0};
-std::deque<Input> dInput;
-CriticalSection csInput, csShared;
-Timer timer;
-DisplayList dlBall;
-Transform transform;
-float
-	fPlaneZ = -5.0f,
-	fBallX = 0, fBallY = 0, fBallZ = 0,
-	fBallX0 = 0, fBallY0 = 0,
-	fFrameX = -1.0f, fFrameY = -1.0f, fFrameZ = 0.0f,
-	fBallSpeed = 0.5f;
-volatile int nNewWinX = -1, nNewWinY = -1;
+Image imgBall;
 
-Event evInput;
-
-#define Message(fmt, ...) Message(hWnd, fmt, __VA_ARGS__)
+void Message(char *fmt, ...)
+{
+	// ATTN: blocks the execution and may eat input messages!
+	if (fmt  ==  NULL)
+		return;
+	char text[1024];
+	va_list ap;
+	va_start(ap, fmt);
+		_vsnprintf(text, 1024, fmt, ap);
+	va_end(ap);
+	MessageBox(hWnd, text, "Message", MB_OK | MB_ICONEXCLAMATION);
+}
 
 void Terminate()
 {
@@ -90,18 +288,126 @@ void ToggleFullscreen()
 	PostMessage(hWnd, WM_QUIT, 0, 0);
 }
 
-BOOL ReadImage(Image &image, const char *pchFilename)
+struct Mouse{
+	BOOL				lbutton;					// Mouse Left Button
+	BOOL				mbutton;					// Mouse Middle Button
+	BOOL				rbutton;					// Mouse Right Button
+	WORD				x;							// Mouse X Position	
+	WORD				y;							// Mouse Y Position
+	short				wheel;						// Mouse Wheel
+	BOOL				shift;						// Shift Button Pressed While Mouse Event
+	BOOL				ctrl;						// Control Button Pressed While Mouse Event
+};
+
+struct Keyboard{	
+	BYTE				code;						// Virtual Key Code Of The Last Button Pressed (VK)
+	SHORT				repeatCount;				// repeat count
+	BYTE				scanCode;					// scan code
+	BOOL				extendKey;					// extended-key flag
+	BOOL				alt;						// context code
+	BOOL				repeated;					// previous key-state flag
+	BOOL				pressed;					// transition-state flag
+	
+};
+
+enum InputType { InputKey, InputChar, InputMouse };
+struct Input{
+	UINT uMsg;
+	InputType eType;
+	SHORT nSymbol;
+	Mouse mouse;
+	Keyboard keyboard;
+};
+
+BOOL bKeys[256] = {0};
+std::deque<Input> dInput;
+
+class CriticalSection // Thread synchronization class
 {
-	ErrorCode err = image.ReadTGA(pchFilename);
-	if( !err )
-		return TRUE;
-	Print("Error reading image '%s': %s", pchFilename, err);
-	return FALSE;
-}
+protected:
+	CRITICAL_SECTION critical_section;
+public:
+	CriticalSection()
+	{
+		InitializeCriticalSection(&critical_section);
+	}
+	~CriticalSection()
+	{
+		DeleteCriticalSection(&critical_section);
+	}
+	void Enter()
+	{
+		EnterCriticalSection(&critical_section);
+	}
+	void Leave()
+	{
+		LeaveCriticalSection(&critical_section);
+	}
+	void Wait()
+	{
+		EnterCriticalSection(&critical_section);
+		LeaveCriticalSection(&critical_section);
+	}
+} csInput;
+
+class Lock
+{
+private:
+	CriticalSection &__cs;
+public:
+	Lock(CriticalSection &cs):__cs(cs)
+	{
+		__cs.Enter();
+	}
+	~Lock()
+	{
+		__cs.Leave();
+	}
+};
+
+class Timer
+{
+protected:
+	__int64 nCountsPerSecond, nStartCounter;
+	static __int64 Count()
+	{
+		LARGE_INTEGER tmp;
+		if(!QueryPerformanceCounter(&tmp))
+			return 0;
+		return (__int64)tmp.QuadPart;
+	}
+public:
+	Timer():nCountsPerSecond(0), nStartCounter(0)
+	{
+		LARGE_INTEGER tmp;
+		if(!QueryPerformanceFrequency(&tmp))
+			return;
+		nCountsPerSecond = (__int64)tmp.QuadPart;
+	}
+	float Time()
+	{
+		return nCountsPerSecond ? (float)(Count() - nStartCounter) / nCountsPerSecond : 0;
+	}
+	int Time(int nPrecision)
+	{
+		return nCountsPerSecond ? (int)(nPrecision * (Count() - nStartCounter) / nCountsPerSecond) : 0;
+	}
+	void Restart()
+	{
+		nStartCounter = Count();
+	}
+} timer;
 
 void Update()
 {
-	while( dInput.size() > 0 )
+	if( !bLoaded )
+	{
+		bLoaded = true;
+		if( !imgBall.ReadTGA("art/ball.tga") )
+			Print("Error reading image!");
+	}
+
+	if( dInput.size() > 0 )
 	{
 		Input input;
 		{
@@ -111,220 +417,79 @@ void Update()
 		}
 		switch(input.eType)
 		{
-			case InputMouse:
+		case InputKey:
+			const Keyboard &keyboard = input.keyboard;
+			bKeys[keyboard.code] = keyboard.pressed;
+			if( !keyboard.repeated && keyboard.pressed )
 			{
-				const Mouse &mouse = input.mouse;
-				if( mouse.lbutton )
+				switch( keyboard.code )
 				{
-					Lock lock(csShared);
-					nNewWinX = mouse.x;
-					nNewWinY = nWinHeight - mouse.y;
-				}
-				break;
-			}
-			case InputKey:
-			{
-				const Keyboard &keyboard = input.keyboard;
-				bKeys[keyboard.code] = keyboard.pressed;
-				if( !keyboard.repeated && keyboard.pressed )
-				{
-					switch( keyboard.code )
-					{
-					case VK_F11:
-						ToggleFullscreen();
-						break;
-					case VK_F4:
-						Terminate();
-						break;
-					case VK_LEFT:
-						Print("LEFT\n");
-						break;
-					case VK_RIGHT:
-						Print("RIGHT\n");
-						break;
-					case VK_UP:
-						Print("UP\n");
-						break;
-					case VK_DOWN:
-						Print("DOWN\n");
-						break;
-					}
+				case VK_F11:
+					ToggleFullscreen();
+					break;
+				case VK_F4:
+					Terminate();
+					break;
+				case VK_LEFT:
+					Print("LEFT\n");
+					break;
+				case VK_RIGHT:
+					Print("RIGHT\n");
+					break;
+				case VK_UP:
+					Print("UP\n");
+					break;
+				case VK_DOWN:
+					Print("DOWN\n");
+					break;
 				}
 			}
 		}
 	}
+	bUpdated = TRUE;
 }
-
-void Draw2D()
-{
-	imgBall.Draw(0, 0);
-}
-
-void Draw3D()
-{
-	glTranslatef(0, 0, fPlaneZ);
-
-	if( nNewWinY >= 0 )
-	{
-		int nWinX, nWinY;
-		{
-			Lock lock(csShared);
-			nWinX = nNewWinX;
-			nWinY = nNewWinY;
-		}
-
-		double dWinX0, dWinY0, dDepthZ, dFrameX, dFrameY, dFrameZ;
-		transform.Update();
-		transform.GetWindowCoor(0, 0, 0, dWinX0, dWinY0, dDepthZ);
-		transform.GetObjectCoor((double)nWinX, (double)nWinY, dDepthZ, dFrameX, dFrameY, dFrameZ);
-		fFrameX = (float)dFrameX;
-		fFrameY = (float)dFrameY;
-		fFrameZ = (float)dFrameZ;
-	}
-
-	float time = timer.Time();
-	float dx = fFrameX - fBallX, dy = fFrameY - fBallY, fDist2 = dx*dx + dy*dy;
-	if( fDist2 > 1e-6f )
-	{
-		// Interpolate the ball position towards the target position
-		float fDist = sqrtf(fDist2);
-		float fTravelTime = fDist / fBallSpeed;
-		float dt = time - fLastDrawTime;
-		if( dt > fTravelTime )
-		{
-			fBallX = fFrameX;
-			fBallY = fFrameY;
-		}
-		else
-		{
-			float progress = dt / fTravelTime;
-			fBallX += (fFrameX - fBallX) * progress;
-			fBallY += (fFrameY - fBallY) * progress;
-		}
-	}
-	else
-	{
-		fBallX = fFrameX;
-		fBallY = fFrameY;
-	}
-	fLastDrawTime = time;
-
-	DrawLine(fFrameX, fFrameY, fFrameZ, fBallX, fBallY, fBallZ, 0xff00ffff);
-	DrawFrame(fFrameX, fFrameY, fFrameZ);
-
-	glPushMatrix();
-	glTranslatef(fBallX, fBallY, fBallZ);
-	tTexture.Bind();
-	dlBall.Execute();
-	glPopMatrix();
-}
-
 void Draw()
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	if( !bLoaded )
-		return;
-
-	// 3D
-	glPushAttrib(GL_ENABLE_BIT);
-	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_LIGHTING);
-	glEnable(GL_TEXTURE_2D); // Enable Texture Mapping
-	glDisable(GL_COLOR_MATERIAL);
-	glEnable(GL_FOG); // Enables fog
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity ();
-	gluPerspective (fPerspAngle,
-					(float)nWinWidth / nWinHeight,
-					fPerspNearZ,
-					fPerspFarZ);
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
-	Draw3D();
-	glPopAttrib();
-
-	// 2D
-	glPushAttrib(GL_ENABLE_BIT);
-	glDisable(GL_DEPTH_TEST);
-	glDisable(GL_LIGHTING);
-	glDisable(GL_FOG);
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	glOrtho(0, nWinWidth, 
-			0, nWinHeight, 
-			1, -1);
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
-	Draw2D();
-	glPopAttrib();
-}
-
-void Load()
-{
-	if( bLoaded )
-		return;
-	ReadImage(imgBall, "art/ball.tga");
-	if( ReadImage(imgTexture, "art/texture.tga") )
-	{
-		tTexture.minFilter = GL_LINEAR_MIPMAP_NEAREST;
-		tTexture.magFilter = GL_LINEAR;
-		tTexture.mipmapped = TRUE;
-		ErrorCode err = tTexture.Create(imgTexture);
-		if( err )
-			Print("Error creating texture: %s", err);
-	}
-	if( !dlBall )
-	{
-		CompileDisplayList cds(dlBall);
-		DrawSphere(0.5f);
-	}
-	bLoaded = true;
+	imgBall.Draw(0, 0);
 }
 
 void Redraw()
 {
+	bUpdated = FALSE;
 	Draw();
 	SwapBuffers(hDC);
 }
 
 BOOL glCreate()
 {
+	// Disable 3D specific features
+	glDisable(GL_DEPTH_TEST);
+	glDisable(GL_LIGHTING);
+
 	// Enable transparent colors
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	// Enables Smooth Shading
-	glShadeModel(GL_SMOOTH);
-	// Specify depth params
-	glClearDepth(1);
-	glDepthFunc(GL_LEQUAL);
-	// Really Nice Perspective Calculations
-	glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
-
-	glPolygonMode( GL_BACK, GL_FILL ); // Back Face Is Filled In
-	glPolygonMode( GL_FRONT, GL_FILL ); // Front Face Is Drawn With Lines
-
-	// Create light 1
-	CreateLight(GL_LIGHT1, pLightAmbient, pLightDiffuse, pLightPosition);
-
-	CreateFog(fFogStart, fFogEnd, pFogColor, fFogDensity, uFogMode, uFogQuality);
 
 	// Set the clear color
-	glClearColor(	pFogColor[RED], 
-					pFogColor[GREEN], 
-					pFogColor[BLUE], 
-					pFogColor[ALPHA]);
+	BYTE *rgb = INT_TO_BYTE(nClearColor);
+	glClearColor(	rgb[RED] / 255.0f, 
+					rgb[GREEN] / 255.0f, 
+					rgb[BLUE] / 255.0f, 
+					rgb[ALPHA] / 255.0f);
 
 	return TRUE;
 }
-
 void glDestroy()
 {}
-
 void Reshape()
 {
 	glViewport (0, 0, nWinWidth, nWinHeight);
-	Redraw();
+	glMatrixMode (GL_PROJECTION);
+	glLoadIdentity();
+	glOrtho(0, nWinWidth, 
+			0, nWinHeight, 
+			1, -1);
 }
 
 void InitWindow()
@@ -459,13 +624,6 @@ BOOL DestroyWindow()
 	return TRUE;														// Return True
 }
 
-void OnNewInput(const Input &input)
-{
-	Lock lock(csInput);
-	dInput.push_back(input);
-	evInput.Signal();
-}
-
 LRESULT CALLBACK WinProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	switch (uMsg)
@@ -530,7 +688,10 @@ LRESULT CALLBACK WinProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		{
 			Input input = {uMsg, InputChar};
 			input.nSymbol = (SHORT)wParam;
-			OnNewInput(input);
+			{
+				Lock lock(csInput);
+				dInput.push_back(input);
+			}
 			return 0;
 		}
 		case WM_SYSKEYDOWN:
@@ -546,7 +707,10 @@ LRESULT CALLBACK WinProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			input.keyboard.alt = GET_BIT((DWORD)lParam, 29);
 			input.keyboard.repeated = GET_BIT((DWORD)lParam, 30);
 			input.keyboard.pressed = !GET_BIT((DWORD)lParam, 31);
-			OnNewInput(input);
+			{
+				Lock lock(csInput);
+				dInput.push_back(input);
+			}
 			return 0;
 		}
 		case WM_MOUSEMOVE:
@@ -571,11 +735,36 @@ LRESULT CALLBACK WinProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			input.mouse.rbutton = (wParam&MK_RBUTTON) != 0;
 			input.mouse.shift = (wParam&MK_SHIFT) != 0;
 			input.mouse.ctrl = (wParam&MK_CONTROL) != 0;
-			OnNewInput(input);
+			{
+				Lock lock(csInput);
+				dInput.push_back(input);
+			}
 			return 0;
 		}
 	}
 	return DefWindowProc(hWnd, uMsg, wParam, lParam);
+}
+
+void SetThreadName(LPCSTR name, DWORD threadID = -1)
+{
+	if(!name||!name[0])
+		return;
+
+	struct
+	{
+		DWORD dwType; // must be 0x1000
+		LPCSTR szName; // pointer to name (in user addr space)
+		DWORD dwThreadID; // thread ID (-1=caller thread)
+		DWORD dwFlags; // reserved for future use, must be zero
+	} info = {0x1000, name, threadID, 0};
+
+	__try
+	{
+		RaiseException( 0x406D1388, 0, sizeof(info)/sizeof(DWORD), (DWORD*)&info );
+	}
+	__except(EXCEPTION_CONTINUE_EXECUTION)
+	{
+	}
 }
 
 static DWORD WINAPI UpdateProc(void * param)
@@ -587,7 +776,7 @@ static DWORD WINAPI UpdateProc(void * param)
 	while (bIsProgramLooping)
 	{
 		Update();
-		evInput.Wait(30);
+		Sleep(10);
 	}
 
 	CloseHandle(hThread);
@@ -596,8 +785,6 @@ static DWORD WINAPI UpdateProc(void * param)
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLine, int nCmdShow)
 {
-	InitRandGen();
-
 	hInst = hInstance;
 	pchCmdLine = lpCmdLine;
 	nShow = nCmdShow;
@@ -639,11 +826,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLin
 			}
 			else
 			{
-				Load();
 				for(;;)
 				{
 					MSG msg; // Message Info
-					if(PeekMessage(&msg, hWnd, 0, 0, PM_REMOVE) != 0)
+					if (PeekMessage (&msg, hWnd, 0, 0, PM_REMOVE) != 0)
 					{
 						if (msg.message == WM_QUIT)
 							break;
@@ -651,9 +837,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLin
 						DispatchMessage(&msg);
 						continue;
 					}
-					if( bVisible )
+					if( bUpdated )
 					{
-						Redraw();
+						bUpdated = FALSE;
+						Draw();
+						SwapBuffers(hDC);
 					}
 					else if(bAllowSleep)
 					{
