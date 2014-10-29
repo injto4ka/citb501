@@ -7,12 +7,10 @@
 
 #include "utils.h"
 #include "graphics.h"
-#include "input.h"
+#include "ui.h"
 
 #pragma comment( lib, "opengl32.lib" )				// Search For OpenGL32.lib While Linking
 #pragma comment( lib, "glu32.lib" )					// Search For GLu32.lib While Linking
-
-#pragma warning(disable:4996)
 
 #ifndef WM_TOGGLEFULLSCREEN							// Application Define Message For Toggling
 #	define WM_TOGGLEFULLSCREEN (WM_USER+1)									
@@ -75,7 +73,7 @@ float
 volatile int nNewWinX = -1, nNewWinY = -1, nBallN = 16;
 volatile float fBallR = 0.5f;
 volatile bool bNewBall = false;
-
+Font font("Courier New", -16);
 Event evInput;
 
 #define Message(fmt, ...) Message(hWnd, fmt, __VA_ARGS__)
@@ -180,6 +178,12 @@ void Update()
 void Draw2D()
 {
 	imgBall.Draw(0, 0);
+
+	float fontH = (float)font.m_textMetrix.tmHeight;
+	font.Print("Align Right", 200, 200, 0xff00ffff, Font::ALIGN_RIGHT);
+	font.Print("Align Centre", 200, 200 + fontH, 0xffffffff, Font::ALIGN_CENTRE);
+	font.Print("Align Left", 200, 200 + 2*fontH, 0xffffff00, Font::ALIGN_LEFT);
+
 }
 
 void Draw3D()
@@ -339,12 +343,17 @@ BOOL glCreate()
 					pFogColor[GREEN], 
 					pFogColor[BLUE], 
 					pFogColor[ALPHA]);
+	ErrorCode err = font.Create(hDC);
+	if( err )
+		Print("Font creation error: %s\n", err);
 
 	return TRUE;
 }
 
 void glDestroy()
-{}
+{
+	font.Destroy();
+}
 
 void Reshape()
 {
