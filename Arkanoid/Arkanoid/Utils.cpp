@@ -1,8 +1,6 @@
 #include "utils.h"
 #include <time.h>
 
-#pragma warning(disable:4996)
-
 BOOL File::Open(const char *pchFileName, const char *pchMode)
 {
 	Close();

@@ -4,6 +4,8 @@
 #include <windows.h>			// Windows API Definitions
 #include <stdio.h>
 
+#pragma warning(disable:4996)
+
 #ifndef PI
 #	define PI 3.1415926535897932384626433832795f
 #endif
@@ -16,6 +18,11 @@
 
 #define INT_TO_BYTE(color) ((BYTE*)(&(color)))
 #define BOOL_TO_STR(boolean) ((boolean) ? "true" : "false")
+
+// Returns formatted text
+#define FORMAT(buff, fmt, ...) ( _snprintf(buff, sizeof(buff) - 1, fmt, __VA_ARGS__), buff[sizeof(buff) - 1] = 0, buff )
+
+inline int StrLen(const char *text) { return (text && *text) ? (int)strlen(text) : 0; }
 
 typedef const char* ErrorCode;
 

@@ -1,7 +1,5 @@
 #include "graphics.h"
 
-#pragma warning(disable:4996)
-
 ErrorCode glErrorToStr()
 {
 	switch(glGetError())
