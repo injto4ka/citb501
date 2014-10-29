@@ -362,3 +362,36 @@ GLvoid DrawSphere(float R, int nDivs)
 	}
 	glEnd();
 }
+
+void DrawBox(
+		float left, float top,
+		float width, float height,
+		DWORD color,
+		float line)
+{
+	if(color)
+		SetColor(color);
+	if(line)
+		glLineWidth(line);
+	glBegin(GL_LINE_STRIP);
+		glVertex2f( left, top);
+		glVertex2f( left, top+height);
+		glVertex2f( left+width, top+height);
+		glVertex2f( left+width, top);
+		glVertex2f( left, top);
+	glEnd();
+}
+void FillBox(
+		float left, float top,
+		float width, float height,
+		DWORD color)
+{
+	if(color)
+		SetColor(color);
+	glBegin(GL_QUADS);
+		glVertex2f( left, top);
+		glVertex2f( left, top+height);
+		glVertex2f( left+width, top+height);
+		glVertex2f( left+width, top);
+	glEnd();
+}

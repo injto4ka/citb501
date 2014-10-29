@@ -65,6 +65,14 @@ GLvoid DrawFrame(float x = 0, float y = 0, float z = 0, float r = 1.0f, float w 
 GLvoid DrawLine(float x1 = 0, float y1 = 0, float z1 = 0, 
 				float x2 = 1, float y2 = 1, float z2 = 1,
 				int c = 0xffffffff, float w = 1);
+void DrawBox(
+		float left, float top,
+		float width, float height,
+		DWORD color = 0, float line = 0);
+void FillBox(
+		float left, float top,
+		float width, float height,
+		DWORD color = 0);
 
 ErrorCode glErrorToStr();
 
