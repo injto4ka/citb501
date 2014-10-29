@@ -2,6 +2,7 @@
 #define __INPUT_H_
 
 #include <windows.h>			// Windows API Definitions
+#include <list>
 
 #include "graphics.h"
 
@@ -76,6 +77,54 @@ public:
 	void Print(const char *pchText, float x = 0, float y = 0, int nColor = 0, int nAlign = ALIGN_LEFT);
 
 	operator bool() const {return !!m_uList;}
+};
+
+class Control
+{
+	virtual void Draw(float x, float y) = 0;
+public:
+	float m_fTop, m_fLeft, m_fWidth, m_fHeight;
+	int m_nZ;
+	std::list<Control *> m_lChilds;
+	Control():m_nZ(0), m_fTop(0), m_fLeft(0), m_fWidth(0), m_fHeight(0){}
+	void Add(Control &child);
+	void _Draw(float x = 0, float y = 0);
+	bool operator < (const Control& other) const
+    {
+        return m_nZ < other.m_nZ;
+    }
+};
+
+class Panel: public Control
+{
+	virtual void Draw(float x, float y)
+	{
+		if( m_nFillColor )
+			FillBox(x + m_fLeft, y + m_fTop, m_fWidth, m_fHeight, m_nFillColor);
+		if( m_nBorderColor )
+			DrawBox(x + m_fLeft, y + m_fTop, m_fWidth, m_fHeight, m_nBorderColor, m_fBorderWidth);
+	}
+public:
+	std::string m_strText;
+	Font *m_pFont;
+	int m_nBorderColor, m_nFillColor;
+	float m_fBorderWidth;
+	Panel():m_nBorderColor(0xff000000), m_nFillColor(0xffffffff), m_fBorderWidth(1.0f){}
+};
+
+class Label: public Control
+{
+	virtual void Draw(float x, float y)
+	{
+		if( !m_pFont || m_strText.length() == 0 )
+			return;
+		m_pFont->Print(m_strText.c_str(), x + m_fLeft, y + m_fTop, m_nColor, m_nAlign);
+	}
+public:
+	std::string m_strText;
+	Font *m_pFont;
+	int m_nColor, m_nAlign;
+	Label():m_pFont(NULL), m_nColor(0xff000000), m_nAlign(Font::ALIGN_LEFT){}
 };
 
 #endif __INPUT_H_

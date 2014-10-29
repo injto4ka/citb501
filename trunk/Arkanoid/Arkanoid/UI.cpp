@@ -178,3 +178,19 @@ void Font::Print(const char *pchText, float x, float y, int nColor, int nAlign)
 	glPopAttrib(); // Pops The Current Bits
 	glPopAttrib(); // Pops The Enable Bits
 }
+
+void Control::Add(Control &child)
+{
+	m_lChilds.push_back(&child);
+	m_lChilds.sort();
+}
+void Control::_Draw(float x, float y)
+{
+	Draw(x, y);
+	x += m_fLeft;
+	y += m_fTop;
+	for(auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
+	{
+		(*it)->_Draw(x, y);
+	}
+}

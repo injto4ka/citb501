@@ -75,6 +75,8 @@ volatile float fBallR = 0.5f;
 volatile bool bNewBall = false;
 Font font("Courier New", -16);
 Event evInput;
+Panel cUI;
+Label cLabel;
 
 #define Message(fmt, ...) Message(hWnd, fmt, __VA_ARGS__)
 
@@ -291,6 +293,8 @@ void Draw()
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 	Draw2D();
+	glLoadIdentity();
+	cUI._Draw();
 	glPopAttrib();
 }
 
@@ -298,6 +302,7 @@ void Load()
 {
 	if( bLoaded )
 		return;
+	bLoaded = true;
 	ReadImage(imgBall, "art/ball.tga");
 	if( ReadImage(imgTexture, "art/texture.tga") )
 	{
@@ -308,7 +313,17 @@ void Load()
 		if( err )
 			Print("Error creating texture: %s", err);
 	}
-	bLoaded = true;
+	cLabel.m_fTop = 20;
+	cLabel.m_fLeft = 20;
+	cLabel.m_strText = "Label text";
+	cLabel.m_pFont = &font;
+	cLabel.m_nColor = 0xff0000ff;
+	cUI.m_fWidth = 200;
+	cUI.m_fHeight = 100;
+	cUI.m_fLeft = 350;
+	cUI.m_fTop = 350;
+	cUI.m_nBorderColor = 0xff0000ff;
+	cUI.Add(cLabel);
 }
 
 void Redraw()
