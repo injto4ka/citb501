@@ -61,9 +61,12 @@ void SetMemAlign(int nMemWidth, BOOL bPack);
 void CreateLight(GLenum id, GLfloat *ambient, GLfloat *diffuse, GLfloat *position);
 void CreateFog(GLfloat start, GLfloat end, GLfloat *color, GLfloat density, GLuint func, GLenum quality);
 GLvoid DrawSphere(float R, int nDivs = 16);
-GLvoid DrawFrame(float x = 0, float y = 0, float z = 0, float r = 1.0f, float w = 1);
-GLvoid DrawLine(float x1 = 0, float y1 = 0, float z1 = 0, 
-				float x2 = 1, float y2 = 1, float z2 = 1,
+GLvoid DrawFrame(float x, float y, float z, float r = 1.0f, float w = 1);
+GLvoid DrawLine(float x1, float y1, float z1, 
+				float x2, float y2, float z2,
+				int c = 0xffffffff, float w = 1);
+GLvoid DrawLine(float x1, float y1, 
+				float x2, float y2,
 				int c = 0xffffffff, float w = 1);
 void DrawBox(
 		float left, float top,

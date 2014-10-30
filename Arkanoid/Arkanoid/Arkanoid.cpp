@@ -44,9 +44,8 @@ BOOL bIsProgramLooping = TRUE;
 BOOL bCreateFullScreen = FALSE;
 LONG nDisplayWidth = 800;
 LONG nDisplayHeight = 600; 
-bool bLoaded = false;
 Image imgBall, imgTexture;
-Texture tTexture;
+Texture texture;
 GLfloat
 	pLightAmbient[]= { 0.5f, 0.5f, 0.5f, 1.0f }, // Ambient Light Values
 	pLightDiffuse[]= { 1.0f, 1.0f, 1.0f, 1.0f }, // Diffuse Light Values
@@ -70,13 +69,14 @@ float
 	fBallX0 = 0, fBallY0 = 0,
 	fFrameX = -1.0f, fFrameY = -1.0f, fFrameZ = 0.0f,
 	fBallSpeed = 0.5f;
-volatile int nNewWinX = -1, nNewWinY = -1, nBallN = 16;
+volatile int nNewWinX = -1, nNewWinY = -1, nBallN = 16, nCoordX = 0, nCoordY = 0;
 volatile float fBallR = 0.5f;
 volatile bool bNewBall = false;
 Font font("Courier New", -16);
 Event evInput;
-Panel cUI;
+Panel cPanel;
 Label cLabel;
+Control cContainer;
 
 #define Message(fmt, ...) Message(hWnd, fmt, __VA_ARGS__)
 
@@ -116,11 +116,15 @@ void Update()
 			case InputMouse:
 			{
 				const Mouse &mouse = input.mouse;
-				if( mouse.lbutton )
 				{
 					Lock lock(csShared);
-					nNewWinX = mouse.x;
-					nNewWinY = nWinHeight - mouse.y;
+					nCoordX = mouse.x;
+					nCoordY = nWinHeight - mouse.y;
+					if( mouse.lbutton )
+					{
+						nNewWinX = nCoordX;
+						nNewWinY = nCoordY;
+					}
 				}
 				break;
 			}
@@ -181,10 +185,14 @@ void Draw2D()
 {
 	imgBall.Draw(0, 0);
 
-	float fontH = (float)font.m_textMetrix.tmHeight;
-	font.Print("Align Right", 200, 200, 0xff00ffff, Font::ALIGN_RIGHT);
-	font.Print("Align Centre", 200, 200 + fontH, 0xffffffff, Font::ALIGN_CENTRE);
-	font.Print("Align Left", 200, 200 + 2*fontH, 0xffffff00, Font::ALIGN_LEFT);
+	int fontH = font.GetRowHeight();
+	font.Print("Align Right", 200, 200, 0xff00ffff, ALIGN_RIGHT);
+	font.Print("Align Centre", 200, 200 + (float)fontH, 0xffffffff, ALIGN_CENTER);
+	font.Print("Align Left", 200, 200 + 2*(float)fontH, 0xffffff00, ALIGN_LEFT);
+
+	char buff[128];
+	FORMAT(buff, "(%d, %d)", nCoordX, nCoordY);
+	font.Print(buff, (float)nWinWidth - 5, (float)nWinHeight, 0xffffffff, ALIGN_RIGHT, ALIGN_BOTTOM);
 
 }
 
@@ -250,7 +258,7 @@ void Draw3D()
 
 	glPushMatrix();
 	glTranslatef(fBallX, fBallY, fBallZ);
-	tTexture.Bind();
+	texture.Bind();
 	dlBall.Execute();
 	glPopMatrix();
 }
@@ -258,9 +266,6 @@ void Draw3D()
 void Draw()
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	if( !bLoaded )
-		return;
 
 	// 3D
 	glPushAttrib(GL_ENABLE_BIT);
@@ -294,36 +299,32 @@ void Draw()
 	glLoadIdentity();
 	Draw2D();
 	glLoadIdentity();
-	cUI._Draw();
+	cContainer._Draw();
 	glPopAttrib();
 }
 
-void Load()
+void Init()
 {
-	if( bLoaded )
-		return;
-	bLoaded = true;
 	ReadImage(imgBall, "art/ball.tga");
-	if( ReadImage(imgTexture, "art/texture.tga") )
-	{
-		tTexture.minFilter = GL_LINEAR_MIPMAP_NEAREST;
-		tTexture.magFilter = GL_LINEAR;
-		tTexture.mipmapped = TRUE;
-		ErrorCode err = tTexture.Create(imgTexture);
-		if( err )
-			Print("Error creating texture: %s", err);
-	}
-	cLabel.m_fTop = 20;
-	cLabel.m_fLeft = 20;
+	ReadImage(imgTexture, "art/texture.tga");
+	texture.minFilter = GL_LINEAR_MIPMAP_NEAREST;
+	texture.magFilter = GL_LINEAR;
+	texture.mipmapped = TRUE;
+
+	cLabel.SetBounds(20, 20, 120, 60);
 	cLabel.m_strText = "Label text";
 	cLabel.m_pFont = &font;
+	cLabel.m_fMarginX = 5;
+	cLabel.m_eAlignH = ALIGN_CENTER;
+	cLabel.m_eAlignV = ALIGN_CENTER;
 	cLabel.m_nColor = 0xff0000ff;
-	cUI.m_fWidth = 200;
-	cUI.m_fHeight = 100;
-	cUI.m_fLeft = 350;
-	cUI.m_fTop = 350;
-	cUI.m_nBorderColor = 0xff0000ff;
-	cUI.Add(cLabel);
+	cLabel.m_nBorderColor = 0xff0000ff;
+
+	cPanel.SetBounds(320, 20, 200, 100);
+	cPanel.m_nBorderColor = 0xff0000ff;
+	cPanel.Add(&cLabel);
+
+	cContainer.Add(&cPanel);
 }
 
 void Redraw()
@@ -358,9 +359,16 @@ BOOL glCreate()
 					pFogColor[GREEN], 
 					pFogColor[BLUE], 
 					pFogColor[ALPHA]);
-	ErrorCode err = font.Create(hDC);
+
+	ErrorCode err;
+
+	err = font.Create(hDC);
 	if( err )
 		Print("Font creation error: %s\n", err);
+
+	err = texture.Create(imgTexture);
+	if( err )
+		Print("Error creating texture: %s", err);
 
 	return TRUE;
 }
@@ -368,6 +376,8 @@ BOOL glCreate()
 void glDestroy()
 {
 	font.Destroy();
+	texture.Destroy();
+	dlBall.Destroy();
 }
 
 void Reshape()
@@ -672,6 +682,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLin
 		}
 	}
 
+	Init();
+
 	if( !CreateThread(NULL, 0, UpdateProc, NULL, 0, NULL) )
 	{
 		Message("Failed to start the update thread!");
@@ -688,7 +700,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLin
 			}
 			else
 			{
-				Load();
 				for(;;)
 				{
 					MSG msg; // Message Info

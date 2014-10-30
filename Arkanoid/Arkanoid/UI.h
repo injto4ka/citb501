@@ -40,15 +40,18 @@ struct Input{
 	Keyboard keyboard;
 };
 
+enum TextAlign {
+	ALIGN_CENTER,
+	ALIGN_LEFT,
+	ALIGN_RIGHT,
+	ALIGN_TOP,
+	ALIGN_BOTTOM,
+};
+
 class Font
 {
 	GLuint m_uList; // Display List
 public:
-	enum TextAlign {
-		ALIGN_LEFT,
-		ALIGN_CENTRE,
-		ALIGN_RIGHT
-	};
 	int					m_nHeight; // Font Height (Based On Character (-) Or Cell (+) For Windows Fonts)
 	int					m_nWidth; // Font Width (0 For Automatic Match For Windows Fonts)
 	int					m_nFirst; // First character
@@ -72,22 +75,27 @@ public:
 	ErrorCode Create(HDC	hDC);
 	void Destroy();
 
-	float GetTextWidth(const char *pchText, int nIndex = 0, int nLength = -1) const;
+	int GetRowHeight() const { return m_textMetrix.tmHeight + m_textMetrix.tmInternalLeading; }
+	int GetTextWidth(const char *pchText, int nIndex = 0, int nLength = -1) const;
 	int GetTextIndex(const char *pchText, float m_nWidth, int nIndex = 0, int nLength = -1) const;
-	void Print(const char *pchText, float x = 0, float y = 0, int nColor = 0, int nAlign = ALIGN_LEFT);
+	void Print(const char *pchText, float x = 0, float y = 0, int nColor = 0, int eAlignH = ALIGN_LEFT, int eAlignV = ALIGN_BOTTOM);
 
 	operator bool() const {return !!m_uList;}
 };
 
 class Control
 {
-	virtual void Draw(float x, float y) = 0;
+protected:
+	virtual void Draw(float x, float y){}
 public:
-	float m_fTop, m_fLeft, m_fWidth, m_fHeight;
+	float m_fBottom, m_fLeft, m_fWidth, m_fHeight;
+	bool m_bVisible;
 	int m_nZ;
+	Control *m_owner;
 	std::list<Control *> m_lChilds;
-	Control():m_nZ(0), m_fTop(0), m_fLeft(0), m_fWidth(0), m_fHeight(0){}
-	void Add(Control &child);
+	Control():m_nZ(0), m_fBottom(0), m_fLeft(0), m_fWidth(0), m_fHeight(0), m_bVisible(true), m_owner(NULL){}
+	void SetBounds(float fLeft, float fBottom, float fWidth,float fHeight);
+	void Add(Control *child);
 	void _Draw(float x = 0, float y = 0);
 	bool operator < (const Control& other) const
     {
@@ -97,12 +105,13 @@ public:
 
 class Panel: public Control
 {
+protected:
 	virtual void Draw(float x, float y)
 	{
 		if( m_nFillColor )
-			FillBox(x + m_fLeft, y + m_fTop, m_fWidth, m_fHeight, m_nFillColor);
+			FillBox(x + m_fLeft, y + m_fBottom, m_fWidth, m_fHeight, m_nFillColor);
 		if( m_nBorderColor )
-			DrawBox(x + m_fLeft, y + m_fTop, m_fWidth, m_fHeight, m_nBorderColor, m_fBorderWidth);
+			DrawBox(x + m_fLeft, y + m_fBottom, m_fWidth, m_fHeight, m_nBorderColor, m_fBorderWidth);
 	}
 public:
 	std::string m_strText;
@@ -112,19 +121,20 @@ public:
 	Panel():m_nBorderColor(0xff000000), m_nFillColor(0xffffffff), m_fBorderWidth(1.0f){}
 };
 
-class Label: public Control
+class Label: public Panel
 {
-	virtual void Draw(float x, float y)
-	{
-		if( !m_pFont || m_strText.length() == 0 )
-			return;
-		m_pFont->Print(m_strText.c_str(), x + m_fLeft, y + m_fTop, m_nColor, m_nAlign);
-	}
+protected:
+	virtual void Draw(float x, float y);
 public:
 	std::string m_strText;
 	Font *m_pFont;
-	int m_nColor, m_nAlign;
-	Label():m_pFont(NULL), m_nColor(0xff000000), m_nAlign(Font::ALIGN_LEFT){}
+	int m_nColor, m_eAlignH, m_eAlignV;
+	float m_fMarginX, m_fMarginY;
+	Label():m_pFont(NULL), m_nColor(0xff000000), m_eAlignH(ALIGN_CENTER), m_eAlignV(ALIGN_CENTER), m_fMarginX(0), m_fMarginY(0)
+	{
+		m_nBorderColor = 0;
+		m_nFillColor = 0;
+	}
 };
 
 #endif __INPUT_H_

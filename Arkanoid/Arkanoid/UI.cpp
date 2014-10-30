@@ -113,7 +113,7 @@ int Font::GetTextIndex(const char *pchText, float nWidth, int nIndex, int nLengt
 	}
 	return nIndex + nLength;
 }
-float Font::GetTextWidth(const char *pchText, int nIndex, int nLength) const
+int Font::GetTextWidth(const char *pchText, int nIndex, int nLength) const
 {
 	if(!pchText || !m_uList || !m_pnCharWidths)
 		return 0;
@@ -125,7 +125,7 @@ float Font::GetTextWidth(const char *pchText, int nIndex, int nLength) const
 		return FALSE;
 
 	int code;
-	float m_nWidth=0;
+	int m_nWidth=0;
 	pchText += nIndex;
 	for(int i=0 ;i< nLength; i++) // Loop To Find Text Length
 	{
@@ -136,7 +136,7 @@ float Font::GetTextWidth(const char *pchText, int nIndex, int nLength) const
 	}
 	return m_nWidth;
 }
-void Font::Print(const char *pchText, float x, float y, int nColor, int nAlign)
+void Font::Print(const char *pchText, float x, float y, int nColor, int eAlignH, int eAlignV)
 {
 	if(!m_uList)
 		return;
@@ -152,19 +152,33 @@ void Font::Print(const char *pchText, float x, float y, int nColor, int nAlign)
 	if(nColor)
 		SetColor(nColor);
 
-	float alignedX = x;
-	switch(nAlign)
+	float alignedX;
+	switch(eAlignH)
 	{
-	case ALIGN_CENTRE:
-		alignedX -= 0.5f * GetTextWidth(pchText, 0, nLength);
+	case ALIGN_CENTER:
+		alignedX = x - 0.5f * GetTextWidth(pchText, 0, nLength);
 		break;
 	case ALIGN_RIGHT:
-		alignedX -= GetTextWidth(pchText, 0, nLength);
+		alignedX = x - GetTextWidth(pchText, 0, nLength);
 		break;
+	default:
+		alignedX = x;
+	}
+	float alignedY;
+	switch(eAlignV)
+	{
+	case ALIGN_CENTER:
+		alignedY = y - m_textMetrix.tmHeight / 2;
+		break;
+	case ALIGN_TOP:
+		alignedY = y - m_textMetrix.tmAscent;
+		break;
+	default:
+		alignedY = y + m_textMetrix.tmDescent;
 	}
 	glDisable(GL_TEXTURE_2D); // Enable Texture Mapping
 	glDisable(GL_LIGHTING);
-	glRasterPos2f(alignedX, y);
+	glRasterPos2f(alignedX, alignedY);
 
 	glPushAttrib(GL_LIST_BIT); // Pushes The Display List Bits To Keep Other Lists Inaffected
 	glListBase(m_uList - m_nFirst + m_nExpand*128); // Sets The Base Character to m_nFirst
@@ -179,18 +193,57 @@ void Font::Print(const char *pchText, float x, float y, int nColor, int nAlign)
 	glPopAttrib(); // Pops The Enable Bits
 }
 
-void Control::Add(Control &child)
+void Control::Add(Control *child)
 {
-	m_lChilds.push_back(&child);
+	child->m_owner = this;
+	m_lChilds.push_back(child);
 	m_lChilds.sort();
 }
 void Control::_Draw(float x, float y)
 {
+	if( !m_bVisible )
+		return;
 	Draw(x, y);
 	x += m_fLeft;
-	y += m_fTop;
+	y += m_fBottom;
 	for(auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
 	{
 		(*it)->_Draw(x, y);
 	}
+}
+void Control::SetBounds(float fLeft, float fBottom, float fWidth,float fHeight)
+{
+	m_fWidth = fWidth;
+	m_fHeight = fHeight;
+	m_fLeft = fLeft;
+	m_fBottom = fBottom;
+}
+void Label::Draw(float x, float y)
+{
+	Panel::Draw(x, y);
+	if( !m_pFont || m_strText.length() == 0 )
+		return;
+	switch(m_eAlignH)
+	{
+		case ALIGN_LEFT:
+			x += m_fMarginX;
+			break;
+		case ALIGN_RIGHT:
+			x += m_fWidth - m_fMarginX;
+			break;
+		default:
+			x += m_fWidth / 2;
+	}
+	switch(m_eAlignV)
+	{
+		case ALIGN_BOTTOM:
+			y += m_fMarginY;
+			break;
+		case ALIGN_TOP:
+			y += m_fHeight - m_fMarginY;
+			break;
+		default:
+			y += m_fHeight / 2;
+	}
+	m_pFont->Print(m_strText.c_str(), x + m_fLeft, y + m_fBottom, m_nColor, m_eAlignH, m_eAlignV);
 }
