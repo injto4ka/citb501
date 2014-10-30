@@ -80,7 +80,8 @@ public:
 	int GetTextIndex(const char *pchText, float m_nWidth, int nIndex = 0, int nLength = -1) const;
 	void Print(const char *pchText, float x = 0, float y = 0, int nColor = 0, int eAlignH = ALIGN_LEFT, int eAlignV = ALIGN_BOTTOM);
 
-	operator bool() const {return !!m_uList;}
+	bool IsLoaded() const { return !!m_uList; }
+	operator bool() const { return IsLoaded(); }
 };
 
 class Control
@@ -91,16 +92,13 @@ public:
 	float m_fBottom, m_fLeft, m_fWidth, m_fHeight;
 	bool m_bVisible;
 	int m_nZ;
-	Control *m_owner;
+	Control *m_pOwner;
 	std::list<Control *> m_lChilds;
-	Control():m_nZ(0), m_fBottom(0), m_fLeft(0), m_fWidth(0), m_fHeight(0), m_bVisible(true), m_owner(NULL){}
+	Control():m_nZ(0), m_fBottom(0), m_fLeft(0), m_fWidth(0), m_fHeight(0), m_bVisible(true), m_pOwner(NULL){}
 	void SetBounds(float fLeft, float fBottom, float fWidth,float fHeight);
 	void Add(Control *child);
 	void _Draw(float x = 0, float y = 0);
-	bool operator < (const Control& other) const
-    {
-        return m_nZ < other.m_nZ;
-    }
+	bool operator < (const Control& other) const { return m_nZ < other.m_nZ; }
 };
 
 class Panel: public Control
@@ -108,17 +106,17 @@ class Panel: public Control
 protected:
 	virtual void Draw(float x, float y)
 	{
-		if( m_nFillColor )
-			FillBox(x + m_fLeft, y + m_fBottom, m_fWidth, m_fHeight, m_nFillColor);
+		if( m_nBackColor )
+			FillBox(x, y, m_fWidth, m_fHeight, m_nBackColor);
 		if( m_nBorderColor )
-			DrawBox(x + m_fLeft, y + m_fBottom, m_fWidth, m_fHeight, m_nBorderColor, m_fBorderWidth);
+			DrawBox(x, y, m_fWidth, m_fHeight, m_nBorderColor, m_fBorderWidth);
 	}
 public:
 	std::string m_strText;
 	Font *m_pFont;
-	int m_nBorderColor, m_nFillColor;
+	int m_nBorderColor, m_nBackColor;
 	float m_fBorderWidth;
-	Panel():m_nBorderColor(0xff000000), m_nFillColor(0xffffffff), m_fBorderWidth(1.0f){}
+	Panel():m_nBorderColor(0), m_nBackColor(0), m_fBorderWidth(1.0f){}
 };
 
 class Label: public Panel
@@ -126,15 +124,17 @@ class Label: public Panel
 protected:
 	virtual void Draw(float x, float y);
 public:
-	std::string m_strText;
 	Font *m_pFont;
-	int m_nColor, m_eAlignH, m_eAlignV;
-	float m_fMarginX, m_fMarginY;
-	Label():m_pFont(NULL), m_nColor(0xff000000), m_eAlignH(ALIGN_CENTER), m_eAlignV(ALIGN_CENTER), m_fMarginX(0), m_fMarginY(0)
-	{
-		m_nBorderColor = 0;
-		m_nFillColor = 0;
-	}
+	std::string m_strText;
+	int m_nForeColor, m_eAlignH, m_eAlignV;
+	float m_fMarginX, m_fMarginY, m_fOffsetX, m_fOffsetY;
+	Label():
+		m_pFont(NULL), m_nForeColor(0xff000000),
+		m_eAlignH(ALIGN_CENTER), m_eAlignV(ALIGN_CENTER),
+		m_fMarginX(0), m_fMarginY(0),
+		m_fOffsetX(0), m_fOffsetY(0)
+	{}
+	bool AdjustSize();
 };
 
 #endif __INPUT_H_

@@ -311,17 +311,21 @@ void Init()
 	texture.magFilter = GL_LINEAR;
 	texture.mipmapped = TRUE;
 
-	cLabel.SetBounds(20, 20, 120, 60);
+	cLabel.SetBounds(100, 20, 120, 60);
 	cLabel.m_strText = "Label text";
 	cLabel.m_pFont = &font;
+	cLabel.AdjustSize();
 	cLabel.m_fMarginX = 5;
+	cLabel.m_fOffsetY = 4;
 	cLabel.m_eAlignH = ALIGN_CENTER;
 	cLabel.m_eAlignV = ALIGN_CENTER;
-	cLabel.m_nColor = 0xff0000ff;
+	cLabel.m_nForeColor = 0xff0000ff;
 	cLabel.m_nBorderColor = 0xff0000ff;
+	cLabel.m_nBackColor = 0xff00ffff;
 
 	cPanel.SetBounds(320, 20, 200, 100);
 	cPanel.m_nBorderColor = 0xff0000ff;
+	cPanel.m_nBackColor = 0xffffffff;
 	cPanel.Add(&cLabel);
 
 	cContainer.Add(&cPanel);
@@ -370,6 +374,8 @@ BOOL glCreate()
 	if( err )
 		Print("Error creating texture: %s", err);
 
+	cLabel.AdjustSize();
+
 	return TRUE;
 }
 
@@ -383,7 +389,6 @@ void glDestroy()
 void Reshape()
 {
 	glViewport (0, 0, nWinWidth, nWinHeight);
-	Redraw();
 }
 
 void InitWindow()
