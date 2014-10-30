@@ -87,29 +87,29 @@ public:
 class Control
 {
 protected:
-	virtual void Draw(float x, float y){}
+	virtual void Draw(int x, int y){}
 public:
-	float m_fBottom, m_fLeft, m_fWidth, m_fHeight;
+	int m_nBottom, m_nLeft, m_nWidth, m_nHeight;
 	bool m_bVisible;
 	int m_nZ;
 	Control *m_pOwner;
 	std::list<Control *> m_lChilds;
-	Control():m_nZ(0), m_fBottom(0), m_fLeft(0), m_fWidth(0), m_fHeight(0), m_bVisible(true), m_pOwner(NULL){}
-	void SetBounds(float fLeft, float fBottom, float fWidth,float fHeight);
+	Control():m_nZ(0), m_nBottom(0), m_nLeft(0), m_nWidth(0), m_nHeight(0), m_bVisible(true), m_pOwner(NULL){}
+	void SetBounds(int nLeft, int nBottom, int nWidth, int nHeight);
 	void Add(Control *child);
-	void _Draw(float x = 0, float y = 0);
+	void _Draw(int x = 0, int y = 0);
 	bool operator < (const Control& other) const { return m_nZ < other.m_nZ; }
 };
 
 class Panel: public Control
 {
 protected:
-	virtual void Draw(float x, float y)
+	virtual void Draw(int x, int y)
 	{
 		if( m_nBackColor )
-			FillBox(x, y, m_fWidth, m_fHeight, m_nBackColor);
+			FillBox((float)x, (float)y, (float)m_nWidth, (float)m_nHeight, m_nBackColor);
 		if( m_nBorderColor )
-			DrawBox(x, y, m_fWidth, m_fHeight, m_nBorderColor, m_fBorderWidth);
+			DrawBox((float)x, (float)y, (float)m_nWidth, (float)m_nHeight, m_nBorderColor, m_fBorderWidth);
 	}
 public:
 	std::string m_strText;
@@ -122,17 +122,16 @@ public:
 class Label: public Panel
 {
 protected:
-	virtual void Draw(float x, float y);
+	virtual void Draw(int x, int y);
 public:
 	Font *m_pFont;
 	std::string m_strText;
-	int m_nForeColor, m_eAlignH, m_eAlignV;
-	float m_fMarginX, m_fMarginY, m_fOffsetX, m_fOffsetY;
+	int m_nForeColor, m_eAlignH, m_eAlignV, m_nMarginX, m_nMarginY, m_nOffsetX, m_nOffsetY;
 	Label():
 		m_pFont(NULL), m_nForeColor(0xff000000),
 		m_eAlignH(ALIGN_CENTER), m_eAlignV(ALIGN_CENTER),
-		m_fMarginX(0), m_fMarginY(0),
-		m_fOffsetX(0), m_fOffsetY(0)
+		m_nMarginX(0), m_nMarginY(0),
+		m_nOffsetX(0), m_nOffsetY(0)
 	{}
 	bool AdjustSize();
 };

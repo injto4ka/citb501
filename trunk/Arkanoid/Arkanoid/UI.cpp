@@ -199,23 +199,26 @@ void Control::Add(Control *child)
 	m_lChilds.push_back(child);
 	m_lChilds.sort();
 }
-void Control::_Draw(float x, float y)
+void Control::_Draw(int x, int y)
 {
 	if( !m_bVisible )
 		return;
 
-	x += m_fLeft;
-	y += m_fBottom;
+	x += m_nLeft;
+	y += m_nBottom;
 
 	glPushAttrib(GL_ENABLE_BIT);
 	glPushAttrib(GL_SCISSOR_BIT);
-	if( m_fWidth * m_fHeight > 0 )
+	if( m_nWidth * m_nHeight > 0 )
 	{
 		glEnable(GL_SCISSOR_TEST);
 		GLint box[4] = {};
 		glGetIntegerv(GL_SCISSOR_BOX, box);
-		int sx = max(box[0], Trunc(x - 1)), sy = max(box[1], Trunc(y - 1)), sw = min(box[2], Trunc(m_fWidth + 1)), sh = min(box[3], Trunc(m_fHeight + 1));
-		glScissor(sx, sy, sw, sh);
+		int nLeft = max(box[0], x - 1),
+			nBottom = max(box[1], y - 1),
+			nRight = min(box[0] + box[2], x + m_nWidth),
+			nTop = min(box[1] + box[3], y + m_nHeight);
+		glScissor(nLeft, nBottom, nRight - nLeft, nTop - nBottom);
 		ErrorCode err = glErrorToStr();
 		if( err )
 			Print(err);
@@ -226,14 +229,14 @@ void Control::_Draw(float x, float y)
 	glPopAttrib();
 	glPopAttrib();
 }
-void Control::SetBounds(float fLeft, float fBottom, float fWidth,float fHeight)
+void Control::SetBounds(int nLeft, int nBottom, int nWidth, int nHeight)
 {
-	m_fWidth = fWidth;
-	m_fHeight = fHeight;
-	m_fLeft = fLeft;
-	m_fBottom = fBottom;
+	m_nWidth = nWidth;
+	m_nHeight = nHeight;
+	m_nLeft = nLeft;
+	m_nBottom = nBottom;
 }
-void Label::Draw(float x, float y)
+void Label::Draw(int x, int y)
 {
 	Panel::Draw(x, y);
 	if( !m_pFont || !m_nForeColor || m_strText.length() == 0 )
@@ -241,32 +244,32 @@ void Label::Draw(float x, float y)
 	switch(m_eAlignH)
 	{
 		case ALIGN_LEFT:
-			x += m_fMarginX;
+			x += m_nMarginX;
 			break;
 		case ALIGN_RIGHT:
-			x += m_fWidth - m_fMarginX;
+			x += m_nWidth - m_nMarginX;
 			break;
 		default:
-			x += m_fWidth / 2;
+			x += m_nWidth / 2;
 	}
 	switch(m_eAlignV)
 	{
 		case ALIGN_BOTTOM:
-			y += m_fMarginY;
+			y += m_nMarginY;
 			break;
 		case ALIGN_TOP:
-			y += m_fHeight - m_fMarginY;
+			y += m_nHeight - m_nMarginY;
 			break;
 		default:
-			y += m_fHeight / 2;
+			y += m_nHeight / 2;
 	}
-	m_pFont->Print(m_strText.c_str(), x + m_fOffsetX, y + m_fOffsetY, m_nForeColor, m_eAlignH, m_eAlignV);
+	m_pFont->Print(m_strText.c_str(), (float)(x + m_nOffsetX), (float)(y + m_nOffsetY), m_nForeColor, m_eAlignH, m_eAlignV);
 }
 bool Label::AdjustSize()
 {
 	if( !m_pFont || !m_pFont->IsLoaded() )
 		return false;
-	m_fWidth = m_pFont->GetTextWidth(m_strText.c_str()) + 2*m_fMarginX;
-	m_fHeight = m_pFont->GetRowHeight() + 2*m_fMarginY;
+	m_nWidth = m_pFont->GetTextWidth(m_strText.c_str()) + 2*m_nMarginX;
+	m_nHeight = m_pFont->GetRowHeight() + 2*m_nMarginY;
 	return true;
 }
