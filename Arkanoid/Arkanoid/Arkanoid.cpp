@@ -311,12 +311,12 @@ void Init()
 	texture.magFilter = GL_LINEAR;
 	texture.mipmapped = TRUE;
 
-	cLabel.SetBounds(100, 20, 120, 60);
+	cLabel.SetBounds(-10, 20, 120, 60);
 	cLabel.m_strText = "Label text";
 	cLabel.m_pFont = &font;
 	cLabel.AdjustSize();
-	cLabel.m_fMarginX = 5;
-	cLabel.m_fOffsetY = 4;
+	cLabel.m_nMarginX = 5;
+	cLabel.m_nOffsetY = 4;
 	cLabel.m_eAlignH = ALIGN_CENTER;
 	cLabel.m_eAlignV = ALIGN_CENTER;
 	cLabel.m_nForeColor = 0xff0000ff;
