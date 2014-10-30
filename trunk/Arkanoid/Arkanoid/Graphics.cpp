@@ -232,6 +232,35 @@ GLvoid DrawLine(float x1, float y1, float z1,
 	glPopAttrib(); // GL_ENABLE_BIT
 }
 
+GLvoid DrawLine(float x1, float y1,
+				float x2, float y2,
+				int c, float w)
+{
+	glPushAttrib(GL_ENABLE_BIT);
+	glDisable(GL_LIGHTING);
+	glDisable(GL_TEXTURE_2D);
+
+	glPushAttrib(GL_LINE_BIT);
+	glLineWidth(w);
+
+	glPushAttrib(GL_HINT_BIT);
+	glEnable(GL_LINE_SMOOTH);
+	glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+
+	glPushAttrib(GL_COLOR_BUFFER_BIT);
+	
+	glBegin(GL_LINES);
+		SetColor(c);
+		glVertex2f( x1, y1);
+		glVertex2f( x2, y2);
+	glEnd();
+
+	glPopAttrib(); // GL_COLOR_BUFFER_BIT
+	glPopAttrib(); // GL_HINT_BIT
+	glPopAttrib(); // GL_LINE_BIT
+	glPopAttrib(); // GL_ENABLE_BIT
+}
+
 GLvoid DrawFrame(float x, float y, float z, float r, float w)
 {
 	glPushAttrib(GL_TRANSFORM_BIT);
