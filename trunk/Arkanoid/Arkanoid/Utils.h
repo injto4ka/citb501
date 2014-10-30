@@ -26,7 +26,7 @@ inline int StrLen(const char *text) { return (text && *text) ? (int)strlen(text)
 
 typedef const char* ErrorCode;
 
-void Print(char *fmt, ...);
+void Print(const char *fmt, ...);
 void Message(HWND hWnd, char *fmt, ...);
 
 void SetThreadName(LPCSTR name, DWORD threadID = -1);

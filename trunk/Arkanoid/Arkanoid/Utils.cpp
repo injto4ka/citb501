@@ -24,7 +24,7 @@ void File::Close()
 	nId = -1;
 }
 
-void Print(char *fmt, ...)
+void Print(const char *fmt, ...)
 {
 	if (fmt  ==  NULL)
 		return;

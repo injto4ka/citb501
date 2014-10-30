@@ -195,7 +195,7 @@ void Font::Print(const char *pchText, float x, float y, int nColor, int eAlignH,
 
 void Control::Add(Control *child)
 {
-	child->m_owner = this;
+	child->m_pOwner = this;
 	m_lChilds.push_back(child);
 	m_lChilds.sort();
 }
@@ -203,13 +203,28 @@ void Control::_Draw(float x, float y)
 {
 	if( !m_bVisible )
 		return;
-	Draw(x, y);
+
 	x += m_fLeft;
 	y += m_fBottom;
-	for(auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
+
+	glPushAttrib(GL_ENABLE_BIT);
+	glPushAttrib(GL_SCISSOR_BIT);
+	if( m_fWidth * m_fHeight > 0 )
 	{
-		(*it)->_Draw(x, y);
+		glEnable(GL_SCISSOR_TEST);
+		GLint box[4] = {};
+		glGetIntegerv(GL_SCISSOR_BOX, box);
+		int sx = max(box[0], Trunc(x - 1)), sy = max(box[1], Trunc(y - 1)), sw = min(box[2], Trunc(m_fWidth + 1)), sh = min(box[3], Trunc(m_fHeight + 1));
+		glScissor(sx, sy, sw, sh);
+		ErrorCode err = glErrorToStr();
+		if( err )
+			Print(err);
 	}
+	Draw(x, y);
+	for(auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
+		(*it)->_Draw(x, y);
+	glPopAttrib();
+	glPopAttrib();
 }
 void Control::SetBounds(float fLeft, float fBottom, float fWidth,float fHeight)
 {
@@ -221,7 +236,7 @@ void Control::SetBounds(float fLeft, float fBottom, float fWidth,float fHeight)
 void Label::Draw(float x, float y)
 {
 	Panel::Draw(x, y);
-	if( !m_pFont || m_strText.length() == 0 )
+	if( !m_pFont || !m_nForeColor || m_strText.length() == 0 )
 		return;
 	switch(m_eAlignH)
 	{
@@ -245,5 +260,13 @@ void Label::Draw(float x, float y)
 		default:
 			y += m_fHeight / 2;
 	}
-	m_pFont->Print(m_strText.c_str(), x + m_fLeft, y + m_fBottom, m_nColor, m_eAlignH, m_eAlignV);
+	m_pFont->Print(m_strText.c_str(), x + m_fOffsetX, y + m_fOffsetY, m_nForeColor, m_eAlignH, m_eAlignV);
+}
+bool Label::AdjustSize()
+{
+	if( !m_pFont || !m_pFont->IsLoaded() )
+		return false;
+	m_fWidth = m_pFont->GetTextWidth(m_strText.c_str()) + 2*m_fMarginX;
+	m_fHeight = m_pFont->GetRowHeight() + 2*m_fMarginY;
+	return true;
 }
