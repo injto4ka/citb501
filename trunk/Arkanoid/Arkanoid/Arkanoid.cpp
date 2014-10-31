@@ -76,6 +76,7 @@ Font font("Courier New", -16);
 Event evInput;
 Panel cPanel;
 Label cLabel;
+Button cButton;
 Control cContainer;
 
 #define Message(fmt, ...) Message(hWnd, fmt, __VA_ARGS__)
@@ -120,10 +121,13 @@ void Update()
 					Lock lock(csShared);
 					nCoordX = mouse.x;
 					nCoordY = nWinHeight - mouse.y;
-					if( mouse.lbutton )
+					if( !cContainer._OnMousePos(nCoordX, nCoordY, mouse.lbutton) )
 					{
-						nNewWinX = nCoordX;
-						nNewWinY = nCoordY;
+						if( mouse.lbutton )
+						{
+							nNewWinX = nCoordX;
+							nNewWinY = nCoordY;
+						}
 					}
 				}
 				break;
@@ -314,19 +318,31 @@ void Init()
 	cLabel.SetBounds(-10, 20, 120, 60);
 	cLabel.m_strText = "Label text";
 	cLabel.m_pFont = &font;
-	cLabel.AdjustSize();
 	cLabel.m_nMarginX = 5;
 	cLabel.m_nOffsetY = 4;
-	cLabel.m_eAlignH = ALIGN_CENTER;
+	cLabel.m_eAlignH = ALIGN_RIGHT;
 	cLabel.m_eAlignV = ALIGN_CENTER;
 	cLabel.m_nForeColor = 0xff0000ff;
-	cLabel.m_nBorderColor = 0xff0000ff;
-	cLabel.m_nBackColor = 0xff00ffff;
+
+	cButton.SetBounds(100, 20, 120, 60);
+	cButton.m_strText = "Exit";
+	cButton.m_pFont = &font;
+	cButton.m_nMarginX = 5;
+	cButton.m_nOffsetY = 4;
+	cButton.m_eAlignH = ALIGN_CENTER;
+	cButton.m_eAlignV = ALIGN_CENTER;
+	cButton.m_nForeColor = 0xff0000cc;
+	cButton.m_nBorderColor = 0xff0000cc;
+	cButton.m_nBackColor = 0xff00cccc;
+	cButton.m_nOverColor = 0xff00ffff;
+	cButton.m_nClickColor = 0xffccffff;
+	cButton.m_pOnClick = Terminate;
 
 	cPanel.SetBounds(320, 20, 200, 100);
 	cPanel.m_nBorderColor = 0xff0000ff;
 	cPanel.m_nBackColor = 0xffffffff;
 	cPanel.Add(&cLabel);
+	cPanel.Add(&cButton);
 
 	cContainer.Add(&cPanel);
 }
@@ -374,7 +390,7 @@ BOOL glCreate()
 	if( err )
 		Print("Error creating texture: %s", err);
 
-	cLabel.AdjustSize();
+	cContainer._AdjustSize();
 
 	return TRUE;
 }
