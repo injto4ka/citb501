@@ -87,42 +87,67 @@ public:
 class Control
 {
 protected:
-	virtual void Draw(int x, int y){}
+	virtual void Draw(){}
+	virtual void AdjustSize(){}
+	virtual void OnMousePos(int x, int y, BOOL click){}
+	virtual void OnMouseExit(){}
+	virtual void OnMouseEnter(){}
 public:
 	int m_nBottom, m_nLeft, m_nWidth, m_nHeight;
-	bool m_bVisible;
+	bool m_bVisible, m_bDisabled, m_bOver;
 	int m_nZ;
 	Control *m_pOwner;
 	std::list<Control *> m_lChilds;
-	Control():m_nZ(0), m_nBottom(0), m_nLeft(0), m_nWidth(0), m_nHeight(0), m_bVisible(true), m_pOwner(NULL){}
+	Control():
+		m_nZ(0), m_nBottom(0), m_nLeft(0), m_nWidth(0), m_nHeight(0),
+		m_bVisible(true), m_bOver(false), m_bDisabled(false),
+		m_pOwner(NULL)
+	{}
+	void ClientToScreen(int &x, int &y) const
+	{
+		x += m_nLeft;
+		y += m_nBottom;
+		if( m_pOwner )
+			m_pOwner->ClientToScreen(x, y);
+	}
+	void ScreenToClient(int &x, int &y) const
+	{
+		if( m_pOwner )
+			m_pOwner->ScreenToClient(x, y);
+		x -= m_nLeft;
+		y -= m_nBottom;
+	}
 	void SetBounds(int nLeft, int nBottom, int nWidth, int nHeight);
 	void Add(Control *child);
-	void _Draw(int x = 0, int y = 0);
+	void _Draw();
+	bool _OnMousePos(int x, int y, BOOL click);
+	void _AdjustSize();
 	bool operator < (const Control& other) const { return m_nZ < other.m_nZ; }
 };
 
 class Panel: public Control
 {
 protected:
-	virtual void Draw(int x, int y)
+	virtual void Draw()
 	{
-		if( m_nBackColor )
-			FillBox((float)x, (float)y, (float)m_nWidth, (float)m_nHeight, m_nBackColor);
-		if( m_nBorderColor )
-			DrawBox((float)x, (float)y, (float)m_nWidth, (float)m_nHeight, m_nBorderColor, m_fBorderWidth);
+		DrawBounds(m_nBackColor, m_nBorderColor, m_nBorderWidth);
 	}
+	void DrawBounds(int nBackColor, int nBorderColor, int nBorderWidth);
 public:
-	std::string m_strText;
-	Font *m_pFont;
-	int m_nBorderColor, m_nBackColor;
-	float m_fBorderWidth;
-	Panel():m_nBorderColor(0), m_nBackColor(0), m_fBorderWidth(1.0f){}
+	int m_nBorderColor, m_nBackColor, m_nBorderWidth;
+	Panel():m_nBorderColor(0), m_nBackColor(0), m_nBorderWidth(1){}
 };
 
 class Label: public Panel
 {
 protected:
-	virtual void Draw(int x, int y);
+	virtual void Draw()
+	{
+		DrawBounds(m_nBackColor, m_nBorderColor, m_nBorderWidth);
+		DrawText(m_nForeColor);
+	}
+	void DrawText(int nTextColor);
+	virtual void AdjustSize();
 public:
 	Font *m_pFont;
 	std::string m_strText;
@@ -133,7 +158,27 @@ public:
 		m_nMarginX(0), m_nMarginY(0),
 		m_nOffsetX(0), m_nOffsetY(0)
 	{}
-	bool AdjustSize();
 };
+
+class Button: public Label
+{
+protected:
+	virtual void OnMousePos(int x, int y, BOOL click);
+	virtual void OnMouseExit();
+	virtual void OnMouseEnter();
+	virtual void OnClick(){ if(m_pOnClick) m_pOnClick();}
+	virtual void Draw()
+	{
+		DrawBounds((m_bClick && m_nClickColor) ? m_nClickColor : ((m_bOver && m_nOverColor) ? m_nOverColor : m_nBackColor), m_nBorderColor, m_nBorderWidth);
+		DrawText(m_nForeColor);
+	}
+public:
+	bool m_bClick, m_bWaitClick;
+	int m_nClickColor, m_nOverColor;
+	void (*m_pOnClick)();
+	Button():m_nOverColor(0), m_nClickColor(0), m_bClick(false), m_bWaitClick(false), m_pOnClick(NULL)
+	{}
+};
+
 
 #endif __INPUT_H_

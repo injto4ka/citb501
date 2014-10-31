@@ -199,35 +199,74 @@ void Control::Add(Control *child)
 	m_lChilds.push_back(child);
 	m_lChilds.sort();
 }
-void Control::_Draw(int x, int y)
+void Control::_AdjustSize()
+{
+	AdjustSize();
+	for(auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
+		(*it)->_AdjustSize();
+}
+void Control::_Draw()
 {
 	if( !m_bVisible )
 		return;
-
-	x += m_nLeft;
-	y += m_nBottom;
-
 	glPushAttrib(GL_ENABLE_BIT);
 	glPushAttrib(GL_SCISSOR_BIT);
-	if( m_nWidth * m_nHeight > 0 )
+	if( m_nWidth && m_nHeight )
 	{
 		glEnable(GL_SCISSOR_TEST);
 		GLint box[4] = {};
 		glGetIntegerv(GL_SCISSOR_BOX, box);
+		int x = 0, y = 0;
+		ClientToScreen(x, y);
 		int nLeft = max(box[0], x - 1),
 			nBottom = max(box[1], y - 1),
 			nRight = min(box[0] + box[2], x + m_nWidth),
 			nTop = min(box[1] + box[3], y + m_nHeight);
 		glScissor(nLeft, nBottom, nRight - nLeft, nTop - nBottom);
-		ErrorCode err = glErrorToStr();
-		if( err )
-			Print(err);
 	}
-	Draw(x, y);
+	Draw();
 	for(auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
-		(*it)->_Draw(x, y);
+		(*it)->_Draw();
 	glPopAttrib();
 	glPopAttrib();
+}
+bool Control::_OnMousePos(int x, int y, BOOL click)
+{
+	x -= m_nLeft;
+	y -= m_nBottom;
+	if( m_bDisabled || x < 0 || m_nWidth && x >= m_nWidth || y < 0 || m_nHeight && y >= m_nHeight )
+	{
+		if( m_bOver )
+		{
+			m_bOver = false;
+			OnMouseExit();
+			for(auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
+			{
+				Control *pChild = *it;
+				if( pChild->m_bOver )
+				{
+					pChild->m_bOver = false;
+					pChild->OnMouseExit();
+				}
+			}
+		}
+		return false;
+	}
+	else
+	{
+		if( !m_bOver )
+		{
+			m_bOver = true;
+			OnMouseEnter();
+		}
+		bool bHandled = false;
+		for(auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
+			bHandled = (*it)->_OnMousePos(x, y, click) || bHandled;
+		if( bHandled )
+			return true;
+		OnMousePos(x, y, click);
+		return m_nWidth && m_nHeight;
+	}
 }
 void Control::SetBounds(int nLeft, int nBottom, int nWidth, int nHeight)
 {
@@ -236,11 +275,21 @@ void Control::SetBounds(int nLeft, int nBottom, int nWidth, int nHeight)
 	m_nLeft = nLeft;
 	m_nBottom = nBottom;
 }
-void Label::Draw(int x, int y)
+void Panel::DrawBounds(int nBackColor, int nBorderColor, int nBorderWidth)
 {
-	Panel::Draw(x, y);
-	if( !m_pFont || !m_nForeColor || m_strText.length() == 0 )
+	int x = 0, y = 0;
+	ClientToScreen(x, y);
+	if( m_nBackColor )
+		FillBox((float)x, (float)y, (float)m_nWidth, (float)m_nHeight, nBackColor);
+	if( m_nBorderColor && nBorderWidth )
+		DrawBox((float)x, (float)y, (float)m_nWidth, (float)m_nHeight, nBorderColor, (float)nBorderWidth);
+}
+void Label::DrawText(int nTextColor)
+{
+	if( !m_pFont || !nTextColor || m_strText.length() == 0 )
 		return;
+	int x = 0, y = 0;
+	ClientToScreen(x, y);
 	switch(m_eAlignH)
 	{
 		case ALIGN_LEFT:
@@ -263,13 +312,38 @@ void Label::Draw(int x, int y)
 		default:
 			y += m_nHeight / 2;
 	}
-	m_pFont->Print(m_strText.c_str(), (float)(x + m_nOffsetX), (float)(y + m_nOffsetY), m_nForeColor, m_eAlignH, m_eAlignV);
+	m_pFont->Print(m_strText.c_str(), (float)(x + m_nOffsetX), (float)(y + m_nOffsetY), nTextColor, m_eAlignH, m_eAlignV);
 }
-bool Label::AdjustSize()
+void Label::AdjustSize()
 {
 	if( !m_pFont || !m_pFont->IsLoaded() )
-		return false;
+		return;
 	m_nWidth = m_pFont->GetTextWidth(m_strText.c_str()) + 2*m_nMarginX;
 	m_nHeight = m_pFont->GetRowHeight() + 2*m_nMarginY;
-	return true;
+}
+void Button::OnMousePos(int x, int y, BOOL click)
+{
+	if( m_bWaitClick )
+	{
+		if( click )
+			return;
+		m_bWaitClick = false;
+	}
+	if( click )
+	{
+		m_bClick = true;
+	}
+	else if( m_bClick )
+	{
+		m_bClick = false;
+		OnClick();
+	}
+}
+void Button::OnMouseExit()
+{
+	m_bClick = false;
+}
+void Button::OnMouseEnter()
+{
+	m_bWaitClick = true;
 }
