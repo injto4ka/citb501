@@ -220,8 +220,8 @@ void Control::_Draw()
 		ClientToScreen(x, y);
 		int nLeft = max(box[0], x - 1),
 			nBottom = max(box[1], y - 1),
-			nRight = min(box[0] + box[2], x + m_nWidth),
-			nTop = min(box[1] + box[3], y + m_nHeight);
+			nRight = min(box[0] + box[2], x + m_nWidth + 1),
+			nTop = min(box[1] + box[3], y + m_nHeight + 1);
 		glScissor(nLeft, nBottom, nRight - nLeft, nTop - nBottom);
 	}
 	Draw();
