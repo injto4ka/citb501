@@ -76,12 +76,13 @@ Font font("Courier New", -16);
 Event evInput;
 Panel cPanel;
 Label cLabel;
-Button cButton;
-CheckBox cCheckBox;
-Container cContainer;
+Button c_bExit;
+CheckBox c_cbFullscreen, c_cbGeometry;
+Container c_container;
 std::list<float> lfFrameTime;
 const int nMaxFrames = 300;
 float fLastFrameTime = 0;
+bool bGeometry = false;
 
 #define Message(fmt, ...) Message(hWnd, fmt, __VA_ARGS__)
 
@@ -95,6 +96,11 @@ void ToggleFullscreen()
 {
 	bCreateFullScreen = !bCreateFullScreen;
 	PostMessage(hWnd, WM_QUIT, 0, 0);
+}
+
+void ToggleGeometry()
+{
+	bGeometry = !bGeometry;
 }
 
 BOOL ReadImage(Image &image, const char *pchFilename)
@@ -125,7 +131,7 @@ void Update()
 					Lock lock(csShared);
 					nCoordX = mouse.x;
 					nCoordY = nWinHeight - mouse.y;
-					if( !cContainer._OnMousePos(nCoordX, nCoordY, mouse.lbutton) )
+					if( !c_container._OnMousePos(nCoordX, nCoordY, mouse.lbutton) )
 					{
 						if( mouse.lbutton )
 						{
@@ -297,9 +303,22 @@ void Draw()
 
 	// 3D
 	glPushAttrib(GL_ENABLE_BIT);
+	glPushAttrib(GL_POLYGON_BIT);
+	if( bGeometry )
+	{
+		glPolygonMode(GL_BACK, GL_LINE); // Back Face Is Filled In
+		glPolygonMode(GL_FRONT, GL_LINE); // Front Face Is Drawn With Lines
+		glDisable(GL_TEXTURE_2D); 
+	}
+	else
+	{
+		glPolygonMode(GL_BACK, GL_FILL);
+		glPolygonMode(GL_FRONT, GL_FILL);
+		glEnable(GL_TEXTURE_2D); 
+	}
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_LIGHTING);
-	//glEnable(GL_TEXTURE_2D); // Enable Texture Mapping
+	//// Enable Texture Mapping
 	glDisable(GL_COLOR_MATERIAL);
 	glEnable(GL_FOG); // Enables fog
 	glMatrixMode(GL_PROJECTION);
@@ -311,6 +330,7 @@ void Draw()
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 	Draw3D();
+	glPopAttrib();
 	glPopAttrib();
 
 	// 2D
@@ -327,7 +347,7 @@ void Draw()
 	glLoadIdentity();
 	Draw2D();
 	glLoadIdentity();
-	cContainer._Draw();
+	c_container._Draw();
 	glPopAttrib();
 }
 
@@ -350,43 +370,59 @@ void Init()
 	cLabel.m_eAlignV = ALIGN_CENTER;
 	cLabel.m_nForeColor = 0xff0000ff;
 
-	cButton.SetBounds(100, 20, 120, 60);
-	cButton.m_strText = "Exit";
-	cButton.m_pFont = &font;
-	cButton.m_nMarginX = 5;
-	cButton.m_nOffsetY = 4;
-	cButton.m_eAlignH = ALIGN_CENTER;
-	cButton.m_eAlignV = ALIGN_CENTER;
-	cButton.m_nForeColor = 0xff0000cc;
-	cButton.m_nBorderColor = 0xff0000cc;
-	cButton.m_nBackColor = 0xff00cccc;
-	cButton.m_nOverColor = 0xff00ffff;
-	cButton.m_nClickColor = 0xffccffff;
-	cButton.m_pOnClick = Terminate;
+	c_bExit.SetBounds(100, 10, 120, 60);
+	c_bExit.m_strText = "Exit";
+	c_bExit.m_pFont = &font;
+	c_bExit.m_nMarginX = 5;
+	c_bExit.m_nOffsetY = 4;
+	c_bExit.m_eAlignH = ALIGN_CENTER;
+	c_bExit.m_eAlignV = ALIGN_CENTER;
+	c_bExit.m_nForeColor = 0xff0000cc;
+	c_bExit.m_nBorderColor = 0xff0000cc;
+	c_bExit.m_nBackColor = 0xff00cccc;
+	c_bExit.m_nOverColor = 0xff00ffff;
+	c_bExit.m_nClickColor = 0xffccffff;
+	c_bExit.m_pOnClick = Terminate;
 	
-	cCheckBox.SetBounds(100, 50, 120, 60);
-	cCheckBox.m_strText = "Fullscreen";
-	cCheckBox.m_pFont = &font;
-	cCheckBox.m_nMarginX = 5;
-	cCheckBox.m_nOffsetY = 4;
-	cCheckBox.m_eAlignH = ALIGN_CENTER;
-	cCheckBox.m_eAlignV = ALIGN_CENTER;
-	cCheckBox.m_nForeColor = 0xff0000cc;
-	cCheckBox.m_nBorderColor = 0xff0000cc;
-	cCheckBox.m_nBackColor = 0xff00cccc;
-	cCheckBox.m_nOverColor = 0xff00ffff;
-	cCheckBox.m_nClickColor = 0xffccffff;
-	cCheckBox.m_nCheckColor = 0xff00ff00;
-	cCheckBox.m_pOnClick = ToggleFullscreen;
+	c_cbFullscreen.SetBounds(100, 40, 120, 60);
+	c_cbFullscreen.m_strText = "Fullscreen";
+	c_cbFullscreen.m_pFont = &font;
+	c_cbFullscreen.m_nMarginX = 5;
+	c_cbFullscreen.m_nOffsetY = 4;
+	c_cbFullscreen.m_eAlignH = ALIGN_CENTER;
+	c_cbFullscreen.m_eAlignV = ALIGN_CENTER;
+	c_cbFullscreen.m_nForeColor = 0xff0000cc;
+	c_cbFullscreen.m_nBorderColor = 0xff0000cc;
+	c_cbFullscreen.m_nBackColor = 0xff00cccc;
+	c_cbFullscreen.m_nOverColor = 0xff00ffff;
+	c_cbFullscreen.m_nClickColor = 0xffccffff;
+	c_cbFullscreen.m_nCheckColor = 0xffccffcc;
+	c_cbFullscreen.m_pOnClick = ToggleFullscreen;
+
+	c_cbGeometry.SetBounds(100, 70, 120, 60);
+	c_cbGeometry.m_strText = "Geometry";
+	c_cbGeometry.m_pFont = &font;
+	c_cbGeometry.m_nMarginX = 5;
+	c_cbGeometry.m_nOffsetY = 4;
+	c_cbGeometry.m_eAlignH = ALIGN_CENTER;
+	c_cbGeometry.m_eAlignV = ALIGN_CENTER;
+	c_cbGeometry.m_nForeColor = 0xff0000cc;
+	c_cbGeometry.m_nBorderColor = 0xff0000cc;
+	c_cbGeometry.m_nBackColor = 0xff00cccc;
+	c_cbGeometry.m_nOverColor = 0xff00ffff;
+	c_cbGeometry.m_nClickColor = 0xffccffff;
+	c_cbGeometry.m_nCheckColor = 0xffccffcc;
+	c_cbGeometry.m_pOnClick = ToggleGeometry;
 
 	cPanel.SetBounds(320, 20, 200, 100);
 	cPanel.m_nBorderColor = 0xff0000ff;
 	cPanel.m_nBackColor = 0xffffffff;
 	cPanel.Add(&cLabel);
-	cPanel.Add(&cButton);
-	cPanel.Add(&cCheckBox);
+	cPanel.Add(&c_bExit);
+	cPanel.Add(&c_cbFullscreen);
+	cPanel.Add(&c_cbGeometry);
 
-	cContainer.Add(&cPanel);
+	c_container.Add(&cPanel);
 }
 
 void Redraw()
@@ -407,9 +443,6 @@ BOOL glCreate()
 	glDepthFunc(GL_LEQUAL);
 	// Really Nice Perspective Calculations
 	glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
-
-	glPolygonMode(GL_BACK, GL_LINE); // Back Face Is Filled In
-	glPolygonMode(GL_FRONT, GL_LINE); // Front Face Is Drawn With Lines
 
 	// Create light 1
 	CreateLight(GL_LIGHT1, pLightAmbient, pLightDiffuse, pLightPosition);
@@ -432,7 +465,7 @@ BOOL glCreate()
 	if( err )
 		Print("Error creating texture: %s", err);
 
-	cContainer._AdjustSize();
+	c_container._AdjustSize();
 
 	return TRUE;
 }
