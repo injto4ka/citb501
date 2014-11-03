@@ -125,7 +125,7 @@ int Font::GetTextWidth(const char *pchText, int nIndex, int nLength) const
 		return FALSE;
 
 	int code;
-	int m_nWidth=0;
+	int m_nWidth = m_textMetrix.tmOverhang;
 	pchText += nIndex;
 	for(int i=0 ;i< nLength; i++) // Loop To Find Text Length
 	{
@@ -343,6 +343,25 @@ void Button::OnMousePos(int x, int y, BOOL click)
 	else if( m_bClick )
 	{
 		m_bClick = false;
+		OnClick();
+	}
+}
+void CheckBox::OnMousePos(int x, int y, BOOL click)
+{
+	if( m_bWaitClick )
+	{
+		if( click )
+			return;
+		m_bWaitClick = false;
+	}
+	if( click )
+	{
+		m_bClick = true;
+	}
+	else if( m_bClick )
+	{
+		m_bClick = false;
+		m_bChecked = !m_bChecked;
 		OnClick();
 	}
 }
