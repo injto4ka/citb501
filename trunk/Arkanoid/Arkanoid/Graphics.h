@@ -77,6 +77,15 @@ void FillBox(
 		float width, float height,
 		DWORD color = 0);
 
+void DrawBox(
+	int left, int top,
+	int width, int height,
+	DWORD color = 0, float line = 0);
+void FillBox(
+	int left, int top,
+	int width, int height,
+	DWORD color = 0);
+
 ErrorCode glErrorToStr();
 
 inline void SetColor(DWORD color)

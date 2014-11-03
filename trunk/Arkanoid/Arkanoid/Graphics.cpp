@@ -424,3 +424,36 @@ void FillBox(
 		glVertex2f( left+width, top);
 	glEnd();
 }
+
+void DrawBox(
+	int left, int top,
+	int width, int height,
+	DWORD color,
+	float line)
+{
+	if (color)
+		SetColor(color);
+	if (line)
+		glLineWidth(line);
+	glBegin(GL_LINE_STRIP);
+	glVertex2i(left, top);
+	glVertex2i(left, top + height);
+	glVertex2i(left + width, top + height);
+	glVertex2i(left + width, top);
+	glVertex2i(left, top);
+	glEnd();
+}
+void FillBox(
+	int left, int top,
+	int width, int height,
+	DWORD color)
+{
+	if (color)
+		SetColor(color);
+	glBegin(GL_QUADS);
+	glVertex2i(left, top);
+	glVertex2i(left, top + height);
+	glVertex2i(left + width, top + height);
+	glVertex2i(left + width, top);
+	glEnd();
+}
