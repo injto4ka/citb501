@@ -211,30 +211,39 @@ void Control::_Draw()
 		return;
 	glPushAttrib(GL_ENABLE_BIT);
 	glPushAttrib(GL_SCISSOR_BIT);
-	if( m_nWidth && m_nHeight )
-	{
-		glEnable(GL_SCISSOR_TEST);
-		GLint box[4] = {};
-		glGetIntegerv(GL_SCISSOR_BOX, box);
-		int x = 0, y = 0;
-		ClientToScreen(x, y);
-		int nLeft = max(box[0], x - 1),
-			nBottom = max(box[1], y - 1),
-			nRight = min(box[0] + box[2], x + m_nWidth + 1),
-			nTop = min(box[1] + box[3], y + m_nHeight + 1);
-		glScissor(nLeft, nBottom, nRight - nLeft, nTop - nBottom);
-	}
+	glEnable(GL_SCISSOR_TEST);
+	GLint box[4] = {};
+	glGetIntegerv(GL_SCISSOR_BOX, box);
+	int x = 0, y = 0;
+	ClientToScreen(x, y);
+	int nLeft = max(box[0], x - 1),
+		nBottom = max(box[1], y - 1),
+		nRight = min(box[0] + box[2], x + m_nWidth + 1),
+		nTop = min(box[1] + box[3], y + m_nHeight + 1);
+	glScissor(nLeft, nBottom, nRight - nLeft, nTop - nBottom);
 	Draw();
 	for(auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
 		(*it)->_Draw();
 	glPopAttrib();
 	glPopAttrib();
 }
+void Container::_Draw()
+{
+	for (auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
+		(*it)->_Draw();
+}
+bool Container::_OnMousePos(int x, int y, BOOL click)
+{
+	for (auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
+		if ((*it)->_OnMousePos(x, y, click))
+			return true;
+	return false;
+}
 bool Control::_OnMousePos(int x, int y, BOOL click)
 {
 	x -= m_nLeft;
 	y -= m_nBottom;
-	if( m_bDisabled || x < 0 || m_nWidth && x >= m_nWidth || y < 0 || m_nHeight && y >= m_nHeight )
+	if( m_bDisabled || x < 0 || x >= m_nWidth || y < 0 || y >= m_nHeight )
 	{
 		if( m_bOver )
 		{
@@ -259,13 +268,11 @@ bool Control::_OnMousePos(int x, int y, BOOL click)
 			m_bOver = true;
 			OnMouseEnter();
 		}
-		bool bHandled = false;
-		for(auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
-			bHandled = (*it)->_OnMousePos(x, y, click) || bHandled;
-		if( bHandled )
-			return true;
+		for (auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
+			if ((*it)->_OnMousePos(x, y, click))
+				return true;
 		OnMousePos(x, y, click);
-		return m_nWidth && m_nHeight;
+		return true;
 	}
 }
 void Control::SetBounds(int nLeft, int nBottom, int nWidth, int nHeight)
