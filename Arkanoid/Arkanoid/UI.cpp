@@ -279,9 +279,9 @@ void Panel::DrawBounds(int nBackColor, int nBorderColor, int nBorderWidth)
 {
 	int x = 0, y = 0;
 	ClientToScreen(x, y);
-	if( m_nBackColor )
+	if (nBackColor)
 		FillBox((float)x, (float)y, (float)m_nWidth, (float)m_nHeight, nBackColor);
-	if( m_nBorderColor && nBorderWidth )
+	if (nBorderColor && nBorderWidth)
 		DrawBox((float)x, (float)y, (float)m_nWidth, (float)m_nHeight, nBorderColor, (float)nBorderWidth);
 }
 void Label::DrawText(int nTextColor)
