@@ -87,6 +87,7 @@ public:
 class Control
 {
 protected:
+	bool m_bOver;
 	virtual void Draw(){}
 	virtual void AdjustSize(){}
 	virtual void OnMousePos(int x, int y, BOOL click){}
@@ -94,7 +95,7 @@ protected:
 	virtual void OnMouseEnter(){}
 public:
 	int m_nBottom, m_nLeft, m_nWidth, m_nHeight;
-	bool m_bVisible, m_bDisabled, m_bOver;
+	bool m_bVisible, m_bDisabled;
 	int m_nZ;
 	Control *m_pOwner;
 	std::list<Control *> m_lChilds;
@@ -123,6 +124,16 @@ public:
 	bool _OnMousePos(int x, int y, BOOL click);
 	void _AdjustSize();
 	bool operator < (const Control& other) const { return m_nZ < other.m_nZ; }
+	void CopyTo(Control& other) const
+	{
+		other.m_nBottom = m_nBottom;
+		other.m_nLeft = m_nLeft;
+		other.m_nWidth = m_nWidth;
+		other.m_nHeight = m_nHeight;
+		other.m_bVisible = m_bVisible;
+		other.m_bDisabled = m_bDisabled;
+		other.m_nZ = m_nZ;
+	}
 };
 
 class Container : public Control
@@ -142,6 +153,13 @@ protected:
 public:
 	int m_nBorderColor, m_nBackColor, m_nBorderWidth;
 	Panel():m_nBorderColor(0), m_nBackColor(0), m_nBorderWidth(1){}
+	void CopyTo(Panel& other) const
+	{
+		Control::CopyTo(other);
+		other.m_nBorderColor = m_nBorderColor;
+		other.m_nBackColor = m_nBackColor;
+		other.m_nBorderWidth = m_nBorderWidth;
+	}
 };
 
 class Label: public Panel
@@ -164,11 +182,25 @@ public:
 		m_nMarginX(0), m_nMarginY(0),
 		m_nOffsetX(0), m_nOffsetY(0)
 	{}
+	void CopyTo(Label& other) const
+	{
+		Panel::CopyTo(other);
+		other.m_strText = m_strText;
+		other.m_pFont = m_pFont;
+		other.m_nForeColor = m_nForeColor;
+		other.m_eAlignH = m_eAlignH;
+		other.m_eAlignV = m_eAlignV;
+		other.m_nMarginX = m_nMarginX;
+		other.m_nMarginY = m_nMarginY;
+		other.m_nOffsetX = m_nOffsetX;
+		other.m_nOffsetY = m_nOffsetY;
+	}
 };
 
 class Button: public Label
 {
 protected:
+	bool m_bClick, m_bWaitClick;
 	virtual void OnMousePos(int x, int y, BOOL click);
 	virtual void OnMouseExit();
 	virtual void OnMouseEnter();
@@ -179,11 +211,17 @@ protected:
 		DrawText(m_nForeColor);
 	}
 public:
-	bool m_bClick, m_bWaitClick;
 	int m_nClickColor, m_nOverColor;
 	void (*m_pOnClick)();
 	Button():m_nOverColor(0), m_nClickColor(0), m_bClick(false), m_bWaitClick(false), m_pOnClick(NULL)
 	{}
+	void CopyTo(Button& other) const
+	{
+		Label::CopyTo(other);
+		other.m_nClickColor = m_nClickColor;
+		other.m_nOverColor = m_nOverColor;
+		other.m_pOnClick = m_pOnClick;
+	}
 };
 
 class CheckBox : public Button
@@ -208,6 +246,12 @@ public:
 	int m_nCheckColor;
 	CheckBox() :m_nCheckColor(0), m_bChecked(false)
 	{}
+	void CopyTo(CheckBox& other) const
+	{
+		Button::CopyTo(other);
+		other.m_nCheckColor = m_nCheckColor;
+		other.m_bChecked = m_bChecked;
+	}
 };
 
 

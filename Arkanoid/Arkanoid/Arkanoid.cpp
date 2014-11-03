@@ -74,8 +74,8 @@ volatile float fBallR = 0.5f;
 volatile bool bNewBall = false;
 Font font("Courier New", -16);
 Event evInput;
-Panel cPanel;
-Label cLabel;
+Panel c_panel;
+Label c_label;
 Button c_bExit;
 CheckBox c_cbFullscreen, c_cbGeometry;
 Container c_container;
@@ -361,21 +361,18 @@ void Init()
 
 	font.m_bBold = true;
 
-	cLabel.SetBounds(-10, 20, 120, 60);
-	cLabel.m_strText = "Label text";
-	cLabel.m_pFont = &font;
-	cLabel.m_nMarginX = 5;
-	cLabel.m_nOffsetY = 4;
-	cLabel.m_eAlignH = ALIGN_RIGHT;
-	cLabel.m_eAlignV = ALIGN_CENTER;
-	cLabel.m_nForeColor = 0xff0000ff;
+	c_label.SetBounds(-10, 20, 120, 60);
+	c_label.m_strText = "Label text";
+	c_label.m_pFont = &font;
+	c_label.m_nMarginX = 5;
+	c_label.m_nOffsetY = 4;
+	c_label.m_eAlignH = ALIGN_RIGHT;
+	c_label.m_eAlignV = ALIGN_CENTER;
+	c_label.m_nForeColor = 0xff0000ff;
+	c_label.CopyTo(c_bExit);
 
 	c_bExit.SetBounds(100, 10, 120, 60);
 	c_bExit.m_strText = "Exit";
-	c_bExit.m_pFont = &font;
-	c_bExit.m_nMarginX = 5;
-	c_bExit.m_nOffsetY = 4;
-	c_bExit.m_eAlignH = ALIGN_CENTER;
 	c_bExit.m_eAlignV = ALIGN_CENTER;
 	c_bExit.m_nForeColor = 0xff0000cc;
 	c_bExit.m_nBorderColor = 0xff0000cc;
@@ -383,46 +380,27 @@ void Init()
 	c_bExit.m_nOverColor = 0xff00ffff;
 	c_bExit.m_nClickColor = 0xffccffff;
 	c_bExit.m_pOnClick = Terminate;
-	
-	c_cbFullscreen.SetBounds(100, 40, 120, 60);
+	c_bExit.CopyTo(c_cbFullscreen);
+
+	c_cbFullscreen.m_nBottom = 40;
 	c_cbFullscreen.m_strText = "Fullscreen";
-	c_cbFullscreen.m_pFont = &font;
-	c_cbFullscreen.m_nMarginX = 5;
-	c_cbFullscreen.m_nOffsetY = 4;
-	c_cbFullscreen.m_eAlignH = ALIGN_CENTER;
-	c_cbFullscreen.m_eAlignV = ALIGN_CENTER;
-	c_cbFullscreen.m_nForeColor = 0xff0000cc;
-	c_cbFullscreen.m_nBorderColor = 0xff0000cc;
-	c_cbFullscreen.m_nBackColor = 0xff00cccc;
-	c_cbFullscreen.m_nOverColor = 0xff00ffff;
-	c_cbFullscreen.m_nClickColor = 0xffccffff;
 	c_cbFullscreen.m_nCheckColor = 0xffccffcc;
 	c_cbFullscreen.m_pOnClick = ToggleFullscreen;
+	c_cbFullscreen.CopyTo(c_cbGeometry);
 
-	c_cbGeometry.SetBounds(100, 70, 120, 60);
+	c_cbGeometry.m_nBottom = 70;
 	c_cbGeometry.m_strText = "Geometry";
-	c_cbGeometry.m_pFont = &font;
-	c_cbGeometry.m_nMarginX = 5;
-	c_cbGeometry.m_nOffsetY = 4;
-	c_cbGeometry.m_eAlignH = ALIGN_CENTER;
-	c_cbGeometry.m_eAlignV = ALIGN_CENTER;
-	c_cbGeometry.m_nForeColor = 0xff0000cc;
-	c_cbGeometry.m_nBorderColor = 0xff0000cc;
-	c_cbGeometry.m_nBackColor = 0xff00cccc;
-	c_cbGeometry.m_nOverColor = 0xff00ffff;
-	c_cbGeometry.m_nClickColor = 0xffccffff;
-	c_cbGeometry.m_nCheckColor = 0xffccffcc;
 	c_cbGeometry.m_pOnClick = ToggleGeometry;
 
-	cPanel.SetBounds(320, 20, 200, 100);
-	cPanel.m_nBorderColor = 0xff0000ff;
-	cPanel.m_nBackColor = 0xffffffff;
-	cPanel.Add(&cLabel);
-	cPanel.Add(&c_bExit);
-	cPanel.Add(&c_cbFullscreen);
-	cPanel.Add(&c_cbGeometry);
+	c_panel.SetBounds(320, 20, 200, 100);
+	c_panel.m_nBorderColor = 0xff0000ff;
+	c_panel.m_nBackColor = 0xffffffff;
+	c_panel.Add(&c_label);
+	c_panel.Add(&c_bExit);
+	c_panel.Add(&c_cbFullscreen);
+	c_panel.Add(&c_cbGeometry);
 
-	c_container.Add(&cPanel);
+	c_container.Add(&c_panel);
 }
 
 void Redraw()
