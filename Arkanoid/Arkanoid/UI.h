@@ -125,6 +125,12 @@ public:
 	bool operator < (const Control& other) const { return m_nZ < other.m_nZ; }
 };
 
+class Container : public Control
+{
+public:
+	void _Draw();
+	bool _OnMousePos(int x, int y, BOOL click);
+};
 class Panel: public Control
 {
 protected:

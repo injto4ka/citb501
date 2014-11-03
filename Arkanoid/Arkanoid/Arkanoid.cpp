@@ -77,7 +77,7 @@ Event evInput;
 Panel cPanel;
 Label cLabel;
 Button cButton;
-Control cContainer;
+Container cContainer;
 
 #define Message(fmt, ...) Message(hWnd, fmt, __VA_ARGS__)
 
