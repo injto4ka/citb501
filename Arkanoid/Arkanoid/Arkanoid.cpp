@@ -77,7 +77,11 @@ Event evInput;
 Panel cPanel;
 Label cLabel;
 Button cButton;
+CheckBox cCheckBox;
 Container cContainer;
+std::list<float> lfFrameTime;
+const int nMaxFrames = 300;
+float fLastFrameTime = 0;
 
 #define Message(fmt, ...) Message(hWnd, fmt, __VA_ARGS__)
 
@@ -163,7 +167,7 @@ void Update()
 						}
 						break;
 					case VK_UP:
-						if(nBallN < 100)
+						if(nBallN < 10000)
 						{
 							Lock lock(csShared);
 							nBallN++;
@@ -196,8 +200,28 @@ void Draw2D()
 
 	char buff[128];
 	FORMAT(buff, "(%d, %d)", nCoordX, nCoordY);
-	font.Print(buff, (float)nWinWidth - 5, (float)nWinHeight, 0xffffffff, ALIGN_RIGHT, ALIGN_BOTTOM);
+	font.Print(buff, (float)nWinWidth - 5, (float)nWinHeight, 0xffffffff, ALIGN_RIGHT, ALIGN_TOP);
+	
+	FORMAT(buff, "Ball N %d", nBallN);
+	font.Print(buff, (float)nWinWidth/2, (float)nWinHeight, 0xffffffff, ALIGN_CENTER, ALIGN_TOP);
 
+	float time = timer.Time();
+	lfFrameTime.push_back(time - fLastFrameTime);
+	fLastFrameTime = time;
+	while (lfFrameTime.size() > nMaxFrames)
+		lfFrameTime.pop_front();
+	float fTimeSum = 0;
+	int nFrames = 0;
+	for (auto it = lfFrameTime.begin(); it != lfFrameTime.end(); it++)
+	{
+		fTimeSum += *it;
+		nFrames++;
+	}
+	if (nFrames)
+	{
+		FORMAT(buff, "%.1f", nFrames / fTimeSum);
+		font.Print(buff, 5, (float)nWinHeight, 0xffffffff, ALIGN_LEFT, ALIGN_TOP);
+	}
 }
 
 void Draw3D()
@@ -275,7 +299,7 @@ void Draw()
 	glPushAttrib(GL_ENABLE_BIT);
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_LIGHTING);
-	glEnable(GL_TEXTURE_2D); // Enable Texture Mapping
+	//glEnable(GL_TEXTURE_2D); // Enable Texture Mapping
 	glDisable(GL_COLOR_MATERIAL);
 	glEnable(GL_FOG); // Enables fog
 	glMatrixMode(GL_PROJECTION);
@@ -315,6 +339,8 @@ void Init()
 	texture.magFilter = GL_LINEAR;
 	texture.mipmapped = TRUE;
 
+	font.m_bBold = true;
+
 	cLabel.SetBounds(-10, 20, 120, 60);
 	cLabel.m_strText = "Label text";
 	cLabel.m_pFont = &font;
@@ -337,12 +363,28 @@ void Init()
 	cButton.m_nOverColor = 0xff00ffff;
 	cButton.m_nClickColor = 0xffccffff;
 	cButton.m_pOnClick = Terminate;
+	
+	cCheckBox.SetBounds(100, 50, 120, 60);
+	cCheckBox.m_strText = "Fullscreen";
+	cCheckBox.m_pFont = &font;
+	cCheckBox.m_nMarginX = 5;
+	cCheckBox.m_nOffsetY = 4;
+	cCheckBox.m_eAlignH = ALIGN_CENTER;
+	cCheckBox.m_eAlignV = ALIGN_CENTER;
+	cCheckBox.m_nForeColor = 0xff0000cc;
+	cCheckBox.m_nBorderColor = 0xff0000cc;
+	cCheckBox.m_nBackColor = 0xff00cccc;
+	cCheckBox.m_nOverColor = 0xff00ffff;
+	cCheckBox.m_nClickColor = 0xffccffff;
+	cCheckBox.m_nCheckColor = 0xff00ff00;
+	cCheckBox.m_pOnClick = ToggleFullscreen;
 
 	cPanel.SetBounds(320, 20, 200, 100);
 	cPanel.m_nBorderColor = 0xff0000ff;
 	cPanel.m_nBackColor = 0xffffffff;
 	cPanel.Add(&cLabel);
 	cPanel.Add(&cButton);
+	cPanel.Add(&cCheckBox);
 
 	cContainer.Add(&cPanel);
 }
@@ -366,8 +408,8 @@ BOOL glCreate()
 	// Really Nice Perspective Calculations
 	glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 
-	glPolygonMode( GL_BACK, GL_FILL ); // Back Face Is Filled In
-	glPolygonMode( GL_FRONT, GL_FILL ); // Front Face Is Drawn With Lines
+	glPolygonMode(GL_BACK, GL_LINE); // Back Face Is Filled In
+	glPolygonMode(GL_FRONT, GL_LINE); // Front Face Is Drawn With Lines
 
 	// Create light 1
 	CreateLight(GL_LIGHT1, pLightAmbient, pLightDiffuse, pLightPosition);

@@ -186,5 +186,29 @@ public:
 	{}
 };
 
+class CheckBox : public Button
+{
+protected:
+	virtual void OnMousePos(int x, int y, BOOL click);
+	virtual void Draw()
+	{
+		DrawBounds(
+			(m_bClick && m_nClickColor) ?
+				m_nClickColor :
+				((m_bOver && m_nOverColor) ?
+					m_nOverColor :
+					(m_bChecked && m_nCheckColor ?
+						m_nCheckColor :
+						m_nBackColor)),
+			m_nBorderColor, m_nBorderWidth);
+		DrawText(m_nForeColor);
+	}
+public:
+	bool m_bChecked;
+	int m_nCheckColor;
+	CheckBox() :m_nCheckColor(0), m_bChecked(false)
+	{}
+};
+
 
 #endif __INPUT_H_
