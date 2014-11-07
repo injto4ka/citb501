@@ -91,7 +91,7 @@ bool bGeometry = false;
 float
 	fParSlowdown = 1.0f,
 	fParSpeedX = 5.0f,
-	fParSpeedY = 2.0f,
+	fParSpeedY = 3.0f,
 	fParSpeedInit = 1.5f,
 	fParAccelX = 0.0f,
 	fParAccelY =-1.5f,
@@ -107,18 +107,12 @@ static GLfloat pfParColors[12][3] =
 };
 struct Particle
 {
-    float   life;
-    float   fade;
-	float   r;
-	float   g;
-	float   b;
-	float   x;
-	float   y;
-	float   z;
-	float   xi;
-	float   yi;
-	float   zi;
-
+	float age;
+    float life;
+    float fade;
+	float r, g, b;
+	float x, y, z;
+	float vx, vy,vz;
 }
 particles[MAX_PARTICLES] = {0}; 
 
@@ -368,41 +362,44 @@ void DrawPar()
 		auto &par = particles[loop];
 		if (par.life <= 0)
 		{
+			par.age = 0;
 			par.life = Random(0.0f, 1.0f);
 			par.fade = Random(fParFadeMin, fParFadeMax);
 			par.x = x0;
 			par.y = y0;
 			par.z = z0;
-			par.xi = fParSpeedX + Random(-fParSpeedInit, fParSpeedInit);
-			par.yi = fParSpeedY + Random(-fParSpeedInit, fParSpeedInit);
-			par.zi = Random(-fParSpeedInit, fParSpeedInit);
+			float fAngle = Random(0.0f, 2*PI);
+			par.vx = fParSpeedX + fParSpeedInit * cosf(fAngle);
+			par.vy = fParSpeedY + fParSpeedInit * sinf(fAngle);
+			par.vz = Random(-fParSpeedInit, fParSpeedInit);
 			float *fColor = pfParColors[(loop / 100) % 12];
 			par.r = fColor[0];
 			par.g = fColor[1];
 			par.b = fColor[2];
 		}
 
-		float x=par.x;               // Particle X Pos
-		float y=par.y;               // Particle Y Pos
-		float z=par.z;               // Particle Z Pos
-		glColor4f(par.r, par.g, par.b, par.life);
+		float x = par.x;
+		float y = par.y;
+		float z = par.z;
+		glColor4f(par.r, par.g, par.b, par.life); // Material color
 		glBegin(GL_TRIANGLE_STRIP);
-			glTexCoord2d(1,1); glVertex3f(x+0.5f,y+0.5f,z); // Top Right
-			glTexCoord2d(0,1); glVertex3f(x-0.5f,y+0.5f,z); // Top Left
-			glTexCoord2d(1,0); glVertex3f(x+0.5f,y-0.5f,z); // Bottom Right
-			glTexCoord2d(0,0); glVertex3f(x-0.5f,y-0.5f,z); // Bottom Left
-		glEnd();                        // Done Building Triangle Strip
+			glTexCoord2d(1, 1); glVertex3f(x + 0.5f, y + 0.5f, z); // Top Right
+			glTexCoord2d(0, 1); glVertex3f(x - 0.5f, y + 0.5f, z); // Top Left
+			glTexCoord2d(1, 0); glVertex3f(x + 0.5f, y - 0.5f, z); // Bottom Right
+			glTexCoord2d(0, 0); glVertex3f(x - 0.5f, y - 0.5f, z); // Bottom Left
+		glEnd();
 
 		float dt = fFrameInterval / fParSlowdown;
-		par.x += par.xi * dt;// Move On The X Axis By X Speed
-		par.y += par.yi * dt;// Move On The Y Axis By Y Speed
-		par.z += par.zi * dt;// Move On The Z Axis By Z Speed
+		par.x += par.vx * dt;
+		par.y += par.vy * dt;
+		par.z += par.vz * dt;
 
-		par.xi += (fParAccelX - fParFriction * par.xi) * dt;			// Take Pull On X Axis Into Account
-		par.yi += (fParAccelY - fParFriction * par.yi) * dt;			// Take Pull On Y Axis Into Account
-		par.zi += (fParAccelZ - fParFriction * par.zi) * dt;			// Take Pull On Z Axis Into Account
+		par.vx += (fParAccelX - fParFriction * par.vx) * dt;
+		par.vy += (fParAccelY - fParFriction * par.vy) * dt;
+		par.vz += (fParAccelZ - fParFriction * par.vz) * dt;
 
-		par.life -= par.fade * dt;	// Reduce Particles Life By 'Fade'
+		par.life -= par.fade * dt;
+		par.age += dt;
 	}
 }
 
