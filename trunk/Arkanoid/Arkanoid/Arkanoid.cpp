@@ -44,16 +44,16 @@ BOOL bIsProgramLooping = TRUE;
 BOOL bCreateFullScreen = FALSE;
 LONG nDisplayWidth = 800;
 LONG nDisplayHeight = 600; 
-Image imgBall, imgTexture;
-Texture texture;
+Image imgBall2D, imgBall3D, imgParticle;
+Texture texBall, texParticle;
 GLfloat
 	pLightAmbient[]= { 0.5f, 0.5f, 0.5f, 1.0f }, // Ambient Light Values
 	pLightDiffuse[]= { 1.0f, 1.0f, 1.0f, 1.0f }, // Diffuse Light Values
 	pLightPosition[]= { 0.0f, 1.0f, 1.0f, 0.0f }, // Light Position
 	pFogColor[]= {0.0f, 0.0f, 0.0f, 1.0f}; // Fog Color
 float fFogStart = 0.0f;
-float fFogEnd = 1.0f;
-float fFogDensity = 0.08f;
+float fFogEnd = 10.0f;
+float fFogDensity = 0.17f;
 float fLastDrawTime = 0;
 GLenum uFogMode = GL_EXP;
 GLenum uFogQuality = GL_DONT_CARE;
@@ -64,12 +64,14 @@ Timer timer;
 DisplayList dlBall;
 Transform transform;
 float
-	fPlaneZ = -5.0f,
+	fPlaneZ = -4.0f,
+	fParPlaneZ = -20.0f,
 	fBallX = 0, fBallY = 0, fBallZ = 0,
 	fBallX0 = 0, fBallY0 = 0,
 	fFrameX = -1.0f, fFrameY = -1.0f, fFrameZ = 0.0f,
-	fBallSpeed = 0.5f;
-volatile int nNewWinX = -1, nNewWinY = -1, nBallN = 16, nCoordX = 0, nCoordY = 0;
+	fBallSpeed = 1.0f;
+int nMouseX = 0, nMouseY = 0;
+volatile int nNewWinX = -1, nNewWinY = -1, nBallN = 16;
 volatile float fBallR = 0.5f;
 volatile bool bNewBall = false;
 Font font("Courier New", -16);
@@ -79,10 +81,48 @@ Label c_label;
 Button c_bExit;
 CheckBox c_cbFullscreen, c_cbGeometry;
 Container c_container;
-std::list<float> lfFrameTime;
+std::list<float> lfFrameIntervals;
 const int nMaxFrames = 300;
-float fLastFrameTime = 0;
+float
+	fLastFrameTime = 0, fFrameInterval = 0,
+	fLastUpdateTime = 0, fUpdateInterval = 0;
 bool bGeometry = false;
+#define MAX_PARTICLES 1200
+float
+	fParSlowdown = 1.0f,
+	fParSpeedX = 5.0f,
+	fParSpeedY = 2.0f,
+	fParSpeedInit = 1.5f,
+	fParAccelX = 0.0f,
+	fParAccelY =-1.5f,
+	fParAccelZ = 0.0f,
+	fParFriction = 0.05f,
+	fParFadeMin = 0.05f,
+	fParFadeMax = 0.5f;
+static GLfloat pfParColors[12][3] =
+{
+    {1.0f,0.5f,0.5f}, {1.0f,0.75f,0.5f}, {1.0f,1.0f,0.5f}, {0.75f,1.0f,0.5f},
+    {0.5f,1.0f,0.5f}, {0.5f,1.0f,0.75f}, {0.5f,1.0f,1.0f}, {0.5f,0.75f,1.0f},
+    {0.5f,0.5f,1.0f}, {0.75f,0.5f,1.0f}, {1.0f,0.5f,1.0f}, {1.0f,0.5f,0.75f}
+};
+struct Particle
+{
+    float   life;
+    float   fade;
+	float   r;
+	float   g;
+	float   b;
+	float   x;
+	float   y;
+	float   z;
+	float   xi;
+	float   yi;
+	float   zi;
+
+}
+particles[MAX_PARTICLES] = {0}; 
+
+//=========================================================================================================
 
 #define Message(fmt, ...) Message(hWnd, fmt, __VA_ARGS__)
 
@@ -114,6 +154,10 @@ BOOL ReadImage(Image &image, const char *pchFilename)
 
 void Update()
 {
+	float time = timer.Time();
+	fUpdateInterval = time - fLastUpdateTime;
+	fLastUpdateTime = time;
+
 	while( dInput.size() > 0 )
 	{
 		Input input;
@@ -129,14 +173,14 @@ void Update()
 				const Mouse &mouse = input.mouse;
 				{
 					Lock lock(csShared);
-					nCoordX = mouse.x;
-					nCoordY = nWinHeight - mouse.y;
-					if( !c_container._OnMousePos(nCoordX, nCoordY, mouse.lbutton) )
+					int x = mouse.x;
+					int y = nWinHeight - mouse.y;
+					if( !c_container._OnMousePos(x, y, mouse.lbutton) )
 					{
 						if( mouse.lbutton )
 						{
-							nNewWinX = nCoordX;
-							nNewWinY = nCoordY;
+							nNewWinX = x;
+							nNewWinY = y;
 						}
 					}
 				}
@@ -145,7 +189,6 @@ void Update()
 			case InputKey:
 			{
 				const Keyboard &keyboard = input.keyboard;
-				bKeys[keyboard.code] = keyboard.pressed;
 				if( !keyboard.repeated && keyboard.pressed )
 				{
 					switch( keyboard.code )
@@ -157,7 +200,7 @@ void Update()
 						Terminate();
 						break;
 					case VK_LEFT:
-						if(fBallR > 0.1f)
+						if(keyboard.alt && fBallR > 0.1f)
 						{
 							Lock lock(csShared);
 							fBallR -= 0.1f;
@@ -165,7 +208,7 @@ void Update()
 						}
 						break;
 					case VK_RIGHT:
-						if(fBallR < 10.0f)
+						if(keyboard.alt && fBallR < 10.0f)
 						{
 							Lock lock(csShared);
 							fBallR += 0.1f;
@@ -173,7 +216,7 @@ void Update()
 						}
 						break;
 					case VK_UP:
-						if(nBallN < 10000)
+						if(keyboard.alt && nBallN < 10000)
 						{
 							Lock lock(csShared);
 							nBallN++;
@@ -181,7 +224,7 @@ void Update()
 						}
 						break;
 					case VK_DOWN:
-						if(nBallN > 2)
+						if(keyboard.alt && nBallN > 2)
 						{
 							Lock lock(csShared);
 							nBallN--;
@@ -193,32 +236,43 @@ void Update()
 			}
 		}
 	}
+
+	if( !bKeys[VK_MENU] )
+	{
+		if (bKeys[VK_NUMPAD8] && (fParAccelY<10)) fParAccelY += 0.5f * fUpdateInterval;
+		if (bKeys[VK_NUMPAD2] && (fParAccelY>-10)) fParAccelY -= 0.5f * fUpdateInterval;
+
+		if (bKeys[VK_NUMPAD6] && (fParAccelX<10)) fParAccelX += 0.5f * fUpdateInterval;
+		if (bKeys[VK_NUMPAD4] && (fParAccelX>-10)) fParAccelX -= 0.5f * fUpdateInterval;
+
+		if (bKeys[VK_ADD] && (fParSlowdown>0.1f)) fParSlowdown -= 0.5f * fUpdateInterval;
+		if (bKeys[VK_SUBTRACT] && (fParSlowdown<20.0f)) fParSlowdown += 0.5f * fUpdateInterval;
+
+		if (bKeys[VK_UP] && (fParSpeedY < 20)) fParSpeedY += 5 * fUpdateInterval;
+		if (bKeys[VK_DOWN] && (fParSpeedY >- 20)) fParSpeedY -= 5 * fUpdateInterval;
+
+		if (bKeys[VK_RIGHT] && (fParSpeedX < 20)) fParSpeedX += 5 * fUpdateInterval;
+		if (bKeys[VK_LEFT] && (fParSpeedX >- 20)) fParSpeedX -= 5 * fUpdateInterval;
+	}
 }
 
 void Draw2D()
 {
-	imgBall.Draw(0, 0);
-
-	int fontH = font.GetRowHeight();
-	font.Print("Align Right", 200, 200, 0xff00ffff, ALIGN_RIGHT);
-	font.Print("Align Centre", 200, 200 + (float)fontH, 0xffffffff, ALIGN_CENTER);
-	font.Print("Align Left", 200, 200 + 2*(float)fontH, 0xffffff00, ALIGN_LEFT);
+	imgBall2D.Draw(0, 0);
 
 	char buff[128];
-	FORMAT(buff, "(%d, %d)", nCoordX, nCoordY);
+	FORMAT(buff, "(%d, %d)", nMouseX, nMouseY);
 	font.Print(buff, (float)nWinWidth - 5, (float)nWinHeight, 0xffffffff, ALIGN_RIGHT, ALIGN_TOP);
 	
 	FORMAT(buff, "Ball N %d", nBallN);
 	font.Print(buff, (float)nWinWidth/2, (float)nWinHeight, 0xffffffff, ALIGN_CENTER, ALIGN_TOP);
 
-	float time = timer.Time();
-	lfFrameTime.push_back(time - fLastFrameTime);
-	fLastFrameTime = time;
-	while (lfFrameTime.size() > nMaxFrames)
-		lfFrameTime.pop_front();
+	lfFrameIntervals.push_back(fFrameInterval);
+	while (lfFrameIntervals.size() > nMaxFrames)
+		lfFrameIntervals.pop_front();
 	float fTimeSum = 0;
 	int nFrames = 0;
-	for (auto it = lfFrameTime.begin(); it != lfFrameTime.end(); it++)
+	for (auto it = lfFrameIntervals.begin(); it != lfFrameIntervals.end(); it++)
 	{
 		fTimeSum += *it;
 		nFrames++;
@@ -228,6 +282,17 @@ void Draw2D()
 		FORMAT(buff, "%.1f", nFrames / fTimeSum);
 		font.Print(buff, 5, (float)nWinHeight, 0xffffffff, ALIGN_LEFT, ALIGN_TOP);
 	}
+}
+
+void ScreenToScene(int x0, int y0, float &x, float &y, float &z)
+{
+	double dX0, dY0, dDepthZ, dX, dY, dZ;
+	transform.Update();
+	transform.GetWindowCoor(0, 0, 0, dX0, dY0, dDepthZ);
+	transform.GetObjectCoor((double)x0, (double)y0, dDepthZ, dX, dY, dZ);
+	x = (float)dX;
+	y = (float)dY;
+	z = (float)dZ;
 }
 
 void Draw3D()
@@ -250,14 +315,7 @@ void Draw3D()
 			nWinX = nNewWinX;
 			nWinY = nNewWinY;
 		}
-
-		double dWinX0, dWinY0, dDepthZ, dFrameX, dFrameY, dFrameZ;
-		transform.Update();
-		transform.GetWindowCoor(0, 0, 0, dWinX0, dWinY0, dDepthZ);
-		transform.GetObjectCoor((double)nWinX, (double)nWinY, dDepthZ, dFrameX, dFrameY, dFrameZ);
-		fFrameX = (float)dFrameX;
-		fFrameY = (float)dFrameY;
-		fFrameZ = (float)dFrameZ;
+		ScreenToScene(nWinX, nWinY, fFrameX, fFrameY, fFrameZ);
 	}
 
 	float time = timer.Time();
@@ -292,16 +350,71 @@ void Draw3D()
 
 	glPushMatrix();
 	glTranslatef(fBallX, fBallY, fBallZ);
-	texture.Bind();
+	texBall.Bind();
 	dlBall.Execute();
 	glPopMatrix();
 }
 
+void DrawPar()
+{
+	glTranslatef(0, 0, fParPlaneZ);
+	texParticle.Bind();
+
+	float x0, y0, z0;
+	ScreenToScene(nMouseX, nMouseY, x0, y0, z0);
+
+	for (int loop = 0; loop < MAX_PARTICLES; loop++)                   // Loop Through All The Particles
+	{
+		auto &par = particles[loop];
+		if (par.life <= 0)
+		{
+			par.life = Random(0.0f, 1.0f);
+			par.fade = Random(fParFadeMin, fParFadeMax);
+			par.x = x0;
+			par.y = y0;
+			par.z = z0;
+			par.xi = fParSpeedX + Random(-fParSpeedInit, fParSpeedInit);
+			par.yi = fParSpeedY + Random(-fParSpeedInit, fParSpeedInit);
+			par.zi = Random(-fParSpeedInit, fParSpeedInit);
+			float *fColor = pfParColors[(loop / 100) % 12];
+			par.r = fColor[0];
+			par.g = fColor[1];
+			par.b = fColor[2];
+		}
+
+		float x=par.x;               // Particle X Pos
+		float y=par.y;               // Particle Y Pos
+		float z=par.z;               // Particle Z Pos
+		glColor4f(par.r, par.g, par.b, par.life);
+		glBegin(GL_TRIANGLE_STRIP);
+			glTexCoord2d(1,1); glVertex3f(x+0.5f,y+0.5f,z); // Top Right
+			glTexCoord2d(0,1); glVertex3f(x-0.5f,y+0.5f,z); // Top Left
+			glTexCoord2d(1,0); glVertex3f(x+0.5f,y-0.5f,z); // Bottom Right
+			glTexCoord2d(0,0); glVertex3f(x-0.5f,y-0.5f,z); // Bottom Left
+		glEnd();                        // Done Building Triangle Strip
+
+		float dt = fFrameInterval / fParSlowdown;
+		par.x += par.xi * dt;// Move On The X Axis By X Speed
+		par.y += par.yi * dt;// Move On The Y Axis By Y Speed
+		par.z += par.zi * dt;// Move On The Z Axis By Z Speed
+
+		par.xi += (fParAccelX - fParFriction * par.xi) * dt;			// Take Pull On X Axis Into Account
+		par.yi += (fParAccelY - fParFriction * par.yi) * dt;			// Take Pull On Y Axis Into Account
+		par.zi += (fParAccelZ - fParFriction * par.zi) * dt;			// Take Pull On Z Axis Into Account
+
+		par.life -= par.fade * dt;	// Reduce Particles Life By 'Fade'
+	}
+}
+
 void Draw()
 {
+	float time = timer.Time();
+	fFrameInterval = time - fLastFrameTime;
+	fLastFrameTime = time;
+
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	// 3D
+	// 3D ---------------------------------------
 	glPushAttrib(GL_ENABLE_BIT);
 	glPushAttrib(GL_POLYGON_BIT);
 	if( bGeometry )
@@ -318,9 +431,8 @@ void Draw()
 	}
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_LIGHTING);
-	//// Enable Texture Mapping
 	glDisable(GL_COLOR_MATERIAL);
-	glEnable(GL_FOG); // Enables fog
+	glEnable(GL_FOG);
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity ();
 	gluPerspective (fPerspAngle,
@@ -333,7 +445,23 @@ void Draw()
 	glPopAttrib();
 	glPopAttrib();
 
-	// 2D
+	// particles ---------------------------------------
+	glPushAttrib(GL_COLOR_BUFFER_BIT);
+	glPushAttrib(GL_HINT_BIT);
+	glPushAttrib(GL_ENABLE_BIT);
+	glDisable(GL_LIGHTING);
+	glDisable(GL_DEPTH_TEST); 
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+	glEnable(GL_TEXTURE_2D); 
+	glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	DrawPar();
+	glPopAttrib();
+	glPopAttrib();
+	glPopAttrib();
+
+	// 2D ---------------------------------------
 	glPushAttrib(GL_ENABLE_BIT);
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_LIGHTING);
@@ -353,11 +481,13 @@ void Draw()
 
 void Init()
 {
-	ReadImage(imgBall, "art/ball.tga");
-	ReadImage(imgTexture, "art/texture.tga");
-	texture.minFilter = GL_LINEAR_MIPMAP_NEAREST;
-	texture.magFilter = GL_LINEAR;
-	texture.mipmapped = TRUE;
+	ReadImage(imgBall2D, "art/ball2d.tga");
+	ReadImage(imgBall3D, "art/ball3d.tga");
+	ReadImage(imgParticle, "art/particle.tga");
+
+	texBall.minFilter = GL_LINEAR_MIPMAP_NEAREST;
+	texBall.magFilter = GL_LINEAR;
+	texBall.mipmapped = TRUE;
 
 	font.m_bBold = true;
 
@@ -439,9 +569,13 @@ BOOL glCreate()
 	if( err )
 		Print("Font creation error: %s\n", err);
 
-	err = texture.Create(imgTexture);
+	err = texBall.Create(imgBall3D);
 	if( err )
-		Print("Error creating texture: %s", err);
+		Print("Error creating ball texBall: %s", err);
+
+	err = texParticle.Create(imgParticle);
+	if( err )
+		Print("Error creating particle texBall: %s", err);
 
 	c_container._AdjustSize();
 
@@ -451,9 +585,12 @@ BOOL glCreate()
 void glDestroy()
 {
 	font.Destroy();
-	texture.Destroy();
+	texBall.Destroy();
+	texParticle.Destroy();
 	dlBall.Destroy();
 }
+
+//================================================================================================================
 
 void Reshape()
 {
@@ -671,15 +808,20 @@ LRESULT CALLBACK WinProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		case WM_KEYDOWN:
 		case WM_KEYUP:
 		{
+			BYTE code = (BYTE)wParam;
+			BOOL pressed = !GET_BIT((DWORD)lParam, 31);
+			bKeys[code] = pressed;
+
 			Input input = {uMsg, InputKey};
-			input.keyboard.code = (BYTE)wParam;
+			input.keyboard.code = code;
 			input.keyboard.repeatCount = (SHORT)GET_BITS((DWORD)lParam, 0, 15);
 			input.keyboard.scanCode = (BYTE)GET_BITS((DWORD)lParam, 16, 23);
 			input.keyboard.extendKey = GET_BIT((DWORD)lParam, 24);
 			input.keyboard.alt = GET_BIT((DWORD)lParam, 29);
 			input.keyboard.repeated = GET_BIT((DWORD)lParam, 30);
-			input.keyboard.pressed = !GET_BIT((DWORD)lParam, 31);
+			input.keyboard.pressed = pressed;
 			OnNewInput(input);
+
 			return 0;
 		}
 		case WM_MOUSEMOVE:
@@ -695,9 +837,14 @@ LRESULT CALLBACK WinProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		case WM_MOUSEACTIVATE:
 		case WM_MOUSEWHEEL:
 		{
+			WORD x = LOWORD(lParam);
+			WORD y = HIWORD(lParam);
+			nMouseX = x;
+			nMouseY = nWinHeight - y;
+
 			Input input = {uMsg, InputMouse};
-			input.mouse.x = LOWORD(lParam);
-			input.mouse.y = HIWORD(lParam);
+			input.mouse.x = x;
+			input.mouse.y = y;
 			input.mouse.wheel = ((short)HIWORD(wParam))/WHEEL_DELTA;			// wheel rotation
 			input.mouse.lbutton = (wParam&MK_LBUTTON) != 0;
 			input.mouse.mbutton = (wParam&MK_MBUTTON) != 0;
@@ -705,6 +852,7 @@ LRESULT CALLBACK WinProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			input.mouse.shift = (wParam&MK_SHIFT) != 0;
 			input.mouse.ctrl = (wParam&MK_CONTROL) != 0;
 			OnNewInput(input);
+
 			return 0;
 		}
 	}
