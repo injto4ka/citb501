@@ -90,15 +90,15 @@ bool bGeometry = false;
 #define MAX_PARTICLES 1200
 float
 	fParSlowdown = 1.0f,
-	fParSpeedX = 5.0f,
-	fParSpeedY = 3.0f,
-	fParSpeedInit = 1.5f,
-	fParAccelX = 0.0f,
-	fParAccelY =-1.5f,
-	fParAccelZ = 0.0f,
+	fParSpeedX = 5.0f, fParSpeedY = 3.0f, 
+	fParSpeedInitMin = 1.0f, fParSpeedInitMax = 2.0f,
+	fParAccelX = 0.0f, fParAccelY = -1.5f, fParAccelZ = 0.0f,
 	fParFriction = 0.05f,
-	fParFadeMin = 0.05f,
-	fParFadeMax = 0.5f;
+	fParFadeMin = 0.05f, fParFadeMax = 0.5f,
+	fParMaxAge = 6.0f,
+	fParResizeMax = -0.15f, fParResizeMin = -0.05f,
+	fParSizeMin = 0.45f, fParSizeMax = 0.55f,
+	fParRotateMax = 50.0f, fParRotateMin = -50.0f;
 static GLfloat pfParColors[12][3] =
 {
     {1.0f,0.5f,0.5f}, {1.0f,0.75f,0.5f}, {1.0f,1.0f,0.5f}, {0.75f,1.0f,0.5f},
@@ -107,12 +107,12 @@ static GLfloat pfParColors[12][3] =
 };
 struct Particle
 {
-	float age;
-    float life;
-    float fade;
+	float age, alpha, size;
+    float fade, resize, rotate;
 	float r, g, b;
 	float x, y, z;
 	float vx, vy,vz;
+	float angle;
 }
 particles[MAX_PARTICLES] = {0}; 
 
@@ -360,15 +360,19 @@ void DrawPar()
 	for (int loop = 0; loop < MAX_PARTICLES; loop++)                   // Loop Through All The Particles
 	{
 		auto &par = particles[loop];
-		if (par.life <= 0)
+		if (par.alpha <= 0 || par.age > fParMaxAge)
 		{
 			par.age = 0;
-			par.life = Random(0.0f, 1.0f);
+			par.alpha = Random(0.0f, 1.0f);
 			par.fade = Random(fParFadeMin, fParFadeMax);
+			par.resize = Random(fParResizeMin, fParResizeMax);
+			par.rotate = Random(fParRotateMin, fParRotateMax);
+			par.size = Random(fParSizeMin, fParSizeMax);
 			par.x = x0;
 			par.y = y0;
 			par.z = z0;
 			float fAngle = Random(0.0f, 2*PI);
+			float fParSpeedInit = Random(fParSpeedInitMin, fParSpeedInitMax);
 			par.vx = fParSpeedX + fParSpeedInit * cosf(fAngle);
 			par.vy = fParSpeedY + fParSpeedInit * sinf(fAngle);
 			par.vz = Random(-fParSpeedInit, fParSpeedInit);
@@ -377,17 +381,6 @@ void DrawPar()
 			par.g = fColor[1];
 			par.b = fColor[2];
 		}
-
-		float x = par.x;
-		float y = par.y;
-		float z = par.z;
-		glColor4f(par.r, par.g, par.b, par.life); // Material color
-		glBegin(GL_TRIANGLE_STRIP);
-			glTexCoord2d(1, 1); glVertex3f(x + 0.5f, y + 0.5f, z); // Top Right
-			glTexCoord2d(0, 1); glVertex3f(x - 0.5f, y + 0.5f, z); // Top Left
-			glTexCoord2d(1, 0); glVertex3f(x + 0.5f, y - 0.5f, z); // Bottom Right
-			glTexCoord2d(0, 0); glVertex3f(x - 0.5f, y - 0.5f, z); // Bottom Left
-		glEnd();
 
 		float dt = fFrameInterval / fParSlowdown;
 		par.x += par.vx * dt;
@@ -398,8 +391,23 @@ void DrawPar()
 		par.vy += (fParAccelY - fParFriction * par.vy) * dt;
 		par.vz += (fParAccelZ - fParFriction * par.vz) * dt;
 
-		par.life -= par.fade * dt;
+		par.alpha -= par.fade * dt;
+		par.size += par.resize * dt;
+		par.angle += par.rotate * dt;
 		par.age += dt;
+
+		glColor4f(par.r, par.g, par.b, par.alpha); // Material color
+		glPushMatrix();
+		glTranslatef(par.x, par.y, par.z);
+		glRotatef(par.angle, 0, 0, 1);
+		glBegin(GL_TRIANGLE_STRIP);
+			float s = par.size;
+			glTexCoord2d(1, 1); glVertex3f(s, s, 0); // Top Right
+			glTexCoord2d(0, 1); glVertex3f(-s, s, 0); // Top Left
+			glTexCoord2d(1, 0); glVertex3f(s, -s, 0); // Bottom Right
+			glTexCoord2d(0, 0); glVertex3f(-s, -s, 0); // Bottom Left
+		glEnd();
+		glPopMatrix();
 	}
 }
 
@@ -412,8 +420,7 @@ void Draw()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	// 3D ---------------------------------------
-	glPushAttrib(GL_ENABLE_BIT);
-	glPushAttrib(GL_POLYGON_BIT);
+	glPushAttrib(GL_ENABLE_BIT | GL_POLYGON_BIT);
 	if( bGeometry )
 	{
 		glPolygonMode(GL_BACK, GL_LINE); // Back Face Is Filled In
@@ -440,22 +447,18 @@ void Draw()
 	glLoadIdentity();
 	Draw3D();
 	glPopAttrib();
-	glPopAttrib();
 
 	// particles ---------------------------------------
-	glPushAttrib(GL_COLOR_BUFFER_BIT);
-	glPushAttrib(GL_HINT_BIT);
-	glPushAttrib(GL_ENABLE_BIT);
+	glPushAttrib(GL_COLOR_BUFFER_BIT | GL_HINT_BIT | GL_ENABLE_BIT);
 	glDisable(GL_LIGHTING);
-	glDisable(GL_DEPTH_TEST); 
+	glDisable(GL_COLOR_MATERIAL);
+	glDisable(GL_DEPTH_TEST);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 	glEnable(GL_TEXTURE_2D); 
 	glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 	DrawPar();
-	glPopAttrib();
-	glPopAttrib();
 	glPopAttrib();
 
 	// 2D ---------------------------------------
@@ -480,7 +483,7 @@ void Init()
 {
 	ReadImage(imgBall2D, "art/ball2d.tga");
 	ReadImage(imgBall3D, "art/ball3d.tga");
-	ReadImage(imgParticle, "art/particle.tga");
+	ReadImage(imgParticle, "art/star.tga");
 
 	texBall.minFilter = GL_LINEAR_MIPMAP_NEAREST;
 	texBall.magFilter = GL_LINEAR;
