@@ -134,6 +134,7 @@ public:
 		other.m_bDisabled = m_bDisabled;
 		other.m_nZ = m_nZ;
 	}
+	virtual void Invalidate(){}
 };
 
 class Container : public Control
@@ -159,6 +160,48 @@ public:
 		other.m_nBorderColor = m_nBorderColor;
 		other.m_nBackColor = m_nBackColor;
 		other.m_nBorderWidth = m_nBorderWidth;
+	}
+};
+
+class Slider : public Panel
+{
+protected:
+	virtual void Draw()
+	{
+		int x = 0, y = 0;
+		ClientToScreen(x, y);
+		if (m_nBackColor)
+			FillBox(x, y, m_nWidth, m_nHeight, m_nBackColor);
+		if (m_nForeColor)
+			FillBox((float)x + m_nMarginX, (float)y + m_nMarginY, GetRatio()*(m_nWidth - 2*m_nMarginX), (float)m_nHeight - 2 * m_nMarginY, m_nForeColor);
+		if (m_nBorderColor && m_nBorderWidth)
+		{
+			DrawBox(x, y, m_nWidth, m_nHeight, m_nBorderColor, (float)m_nBorderWidth);
+			DrawBox(x + m_nMarginX, y + m_nMarginY, m_nWidth - 2 * m_nMarginX, m_nHeight - 2 * m_nMarginY, m_nBorderColor, (float)m_nBorderWidth);
+		}
+	}
+	virtual void OnMousePos(int x, int y, BOOL click)
+	{
+		if (click)
+		{
+			if (x > m_nWidth - m_nMarginX)
+				m_fValue = m_fMax;
+			else if (x < m_nMarginX)
+				m_fValue = m_fMin;
+			else
+				m_fValue = m_fMin + (m_fMax - m_fMin) * (x - m_nMarginX) / (m_nWidth - 2*m_nMarginX);
+			if (m_pOwner)
+				m_pOwner->Invalidate();
+		}
+	}
+public:
+	int m_nForeColor, m_nMarginX, m_nMarginY;
+	float m_fMin, m_fMax, m_fValue;
+	Slider() :m_nForeColor(0xff00ff00), m_fMin(0), m_fMax(1), m_fValue(0.5), m_nMarginX(5), m_nMarginY(5)
+	{}
+	float GetRatio() const
+	{
+		return Clamp((m_fValue - m_fMin) / (m_fMax - m_fMin), 0.0f, 1.0f);
 	}
 };
 
@@ -194,6 +237,36 @@ public:
 		other.m_nMarginY = m_nMarginY;
 		other.m_nOffsetX = m_nOffsetX;
 		other.m_nOffsetY = m_nOffsetY;
+	}
+};
+
+class SliderBar : public Panel
+{
+public:
+	const char *m_pchFormat;
+	Slider m_slider;
+	Label m_name, m_value;
+	SliderBar() :m_pchFormat("%d")
+	{
+		Add(&m_slider);
+		Add(&m_name);
+		Add(&m_value);
+	}
+	virtual void Invalidate()
+	{
+		if (m_pchFormat && *m_pchFormat)
+		{
+			char buff[128];
+			m_value.m_strText = FORMAT(buff, m_pchFormat, m_slider.m_fValue);
+		}
+	}
+	void CopyTo(SliderBar &other) const
+	{
+		Panel::CopyTo(other);
+		m_slider.CopyTo(other.m_slider);
+		m_name.CopyTo(other.m_name);
+		m_value.CopyTo(other.m_value);
+		other.m_pchFormat = m_pchFormat;
 	}
 };
 

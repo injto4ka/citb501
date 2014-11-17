@@ -76,10 +76,11 @@ volatile float fBallR = 0.5f;
 volatile bool bNewBall = false;
 Font font("Courier New", -16);
 Event evInput;
-Panel c_panel;
+Panel c_panel, c_pParticles;
 Label c_label;
 Button c_bExit;
-CheckBox c_cbFullscreen, c_cbGeometry;
+CheckBox c_cbFullscreen, c_cbGeometry, c_cbParticles;
+SliderBar c_sFriction, c_sSlowdown;
 Container c_container;
 std::list<float> lfFrameIntervals;
 const int nMaxFrames = 300;
@@ -89,7 +90,7 @@ float
 bool bGeometry = false;
 #define MAX_PARTICLES 1200
 float
-	fParSlowdown = 1.0f,
+	fParSlowdown = 0.0f,
 	fParSpeedX = 5.0f, fParSpeedY = 3.0f, 
 	fParSpeedInitMin = 1.0f, fParSpeedInitMax = 2.0f,
 	fParAccelX = 0.0f, fParAccelY = -1.5f, fParAccelZ = 0.0f,
@@ -135,6 +136,11 @@ void ToggleFullscreen()
 void ToggleGeometry()
 {
 	bGeometry = !bGeometry;
+}
+
+void ToggleParticlesDlg()
+{
+	c_pParticles.m_bVisible = !c_pParticles.m_bVisible;
 }
 
 BOOL ReadImage(Image &image, const char *pchFilename)
@@ -238,9 +244,6 @@ void Update()
 
 		if (bKeys[VK_NUMPAD6] && (fParAccelX<10)) fParAccelX += 0.5f * fUpdateInterval;
 		if (bKeys[VK_NUMPAD4] && (fParAccelX>-10)) fParAccelX -= 0.5f * fUpdateInterval;
-
-		if (bKeys[VK_ADD] && (fParSlowdown>0.1f)) fParSlowdown -= 0.5f * fUpdateInterval;
-		if (bKeys[VK_SUBTRACT] && (fParSlowdown<20.0f)) fParSlowdown += 0.5f * fUpdateInterval;
 
 		if (bKeys[VK_UP] && (fParSpeedY < 20)) fParSpeedY += 5 * fUpdateInterval;
 		if (bKeys[VK_DOWN] && (fParSpeedY >- 20)) fParSpeedY -= 5 * fUpdateInterval;
@@ -355,7 +358,7 @@ void DrawPar()
 	texParticle.Bind();
 
 	float x0, y0, z0;
-	ScreenToScene(nMouseX, nMouseY, x0, y0, z0);
+	ScreenToScene(200, 300, x0, y0, z0);
 
 	for (int loop = 0; loop < MAX_PARTICLES; loop++)                   // Loop Through All The Particles
 	{
@@ -382,14 +385,16 @@ void DrawPar()
 			par.b = fColor[2];
 		}
 
-		float dt = fFrameInterval / fParSlowdown;
+		float fSlowdown = expf(0.69314718056f * c_sSlowdown.m_slider.m_fValue);
+		float dt = fFrameInterval / fSlowdown;
 		par.x += par.vx * dt;
 		par.y += par.vy * dt;
 		par.z += par.vz * dt;
 
-		par.vx += (fParAccelX - fParFriction * par.vx) * dt;
-		par.vy += (fParAccelY - fParFriction * par.vy) * dt;
-		par.vz += (fParAccelZ - fParFriction * par.vz) * dt;
+		float fFriction = c_sFriction.m_slider.m_fValue;
+		par.vx += (fParAccelX - fFriction * par.vx) * dt;
+		par.vy += (fParAccelY - fFriction * par.vy) * dt;
+		par.vz += (fParAccelZ - fFriction * par.vz) * dt;
 
 		par.alpha -= par.fade * dt;
 		par.size += par.resize * dt;
@@ -521,16 +526,59 @@ void Init()
 	c_cbGeometry.m_nBottom = 70;
 	c_cbGeometry.m_strText = "Geometry";
 	c_cbGeometry.m_pOnClick = ToggleGeometry;
+	c_cbGeometry.CopyTo(c_cbParticles);
 
-	c_panel.SetBounds(320, 20, 200, 100);
+	c_cbParticles.m_nBottom = 100;
+	c_cbParticles.m_strText = "Particles";
+	c_cbParticles.m_pOnClick = ToggleParticlesDlg;
+
+	c_sFriction.SetBounds(10, 10, 310, 30);
+	c_sFriction.m_nBackColor = 0xffffff00;
+	c_sFriction.m_nBorderColor = 0xff000000;
+	c_sFriction.m_pchFormat = "%.2f";
+
+	c_label.CopyTo(c_sFriction.m_name);
+	c_sFriction.m_name.SetBounds(5, 5, 100, 20);
+	c_sFriction.m_name.m_eAlignH = ALIGN_RIGHT;
+	c_sFriction.m_name.m_strText = "Friction";
+	c_sFriction.m_name.m_nForeColor = 0xff000000;
+
+	c_sFriction.m_name.CopyTo(c_sFriction.m_value);
+	c_sFriction.m_value.SetBounds(105, 5, 100, 20);
+	c_sFriction.m_value.m_nForeColor = 0xff000000;
+
+	c_sFriction.m_slider.SetBounds(200, 5, 100, 20);
+	c_sFriction.m_slider.m_nBorderColor = 0xff000000;
+	c_sFriction.m_slider.m_nBackColor = 0xffffffff;
+	c_sFriction.m_slider.m_fValue = fParFriction;
+	c_sFriction.m_slider.m_fMax = 1;
+	c_sFriction.m_slider.m_fMin = 0;
+
+	c_sFriction.CopyTo(c_sSlowdown);
+	c_sSlowdown.m_name.m_strText = "Slowdown";
+	c_sSlowdown.m_nBottom = 40;
+	c_sSlowdown.m_slider.m_fValue = 0;
+	c_sSlowdown.m_slider.m_fMax = 3.0f;
+	c_sSlowdown.m_slider.m_fMin = -3.0f;
+
+	c_pParticles.Add(&c_sFriction);
+	c_pParticles.Add(&c_sSlowdown);
+
+	c_panel.SetBounds(320, 10, 200, 130);
 	c_panel.m_nBorderColor = 0xff0000ff;
 	c_panel.m_nBackColor = 0xffffffff;
 	c_panel.Add(&c_label);
 	c_panel.Add(&c_bExit);
 	c_panel.Add(&c_cbFullscreen);
 	c_panel.Add(&c_cbGeometry);
+	c_panel.Add(&c_cbParticles);
+	c_panel.CopyTo(c_pParticles);
+
+	c_pParticles.SetBounds(320, 150, 400, 100);
+	c_pParticles.m_bVisible = false;
 
 	c_container.Add(&c_panel);
+	c_container.Add(&c_pParticles);
 }
 
 void Redraw()
