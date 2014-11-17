@@ -201,6 +201,7 @@ void Control::Add(Control *child)
 }
 void Control::_AdjustSize()
 {
+	Invalidate();
 	AdjustSize();
 	for(auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
 		(*it)->_AdjustSize();
