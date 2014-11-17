@@ -74,14 +74,18 @@ int nMouseX = 0, nMouseY = 0;
 volatile int nNewWinX = -1, nNewWinY = -1, nBallN = 16;
 volatile float fBallR = 0.5f;
 volatile bool bNewBall = false;
+
+
 Font font("Courier New", -16);
 Event evInput;
 Panel c_panel, c_pParticles;
 Label c_label;
 Button c_bExit;
-CheckBox c_cbFullscreen, c_cbGeometry, c_cbParticles;
+CheckBox c_cbFullscreen, c_cbGeometry, c_cbParticles,c_cbFriction;
 SliderBar c_sFriction, c_sSlowdown;
 Container c_container;
+bool FRICTION,GRAVITY,SPRAY;
+
 std::list<float> lfFrameIntervals;
 const int nMaxFrames = 300;
 float
@@ -351,14 +355,14 @@ void Draw3D()
 	dlBall.Execute();
 	glPopMatrix();
 }
-
+SliderBar s_Xg,s_Yg,s_Resize,s_Rotate,s_Fade;
 void DrawPar()
 {
 	glTranslatef(0, 0, fParPlaneZ);
 	texParticle.Bind();
 
 	float x0, y0, z0;
-	ScreenToScene(200, 300, x0, y0, z0);
+	ScreenToScene(30, 150, x0, y0, z0);
 
 	for (int loop = 0; loop < MAX_PARTICLES; loop++)                   // Loop Through All The Particles
 	{
@@ -392,11 +396,15 @@ void DrawPar()
 		par.z += par.vz * dt;
 
 		float fFriction = c_sFriction.m_slider.m_fValue;
-		par.vx += (fParAccelX - fFriction * par.vx) * dt;
-		par.vy += (fParAccelY - fFriction * par.vy) * dt;
+		float fAccX = s_Xg.m_slider.m_fValue;
+		float fAccY = s_Yg.m_slider.m_fValue;
+		par.vx += (fAccX - fFriction * par.vx) * dt;
+		par.vy += (fAccY - fFriction * par.vy) * dt;
 		par.vz += (fParAccelZ - fFriction * par.vz) * dt;
-
-		par.alpha -= par.fade * dt;
+		
+		float fFade = s_Fade.m_slider.m_fValue;
+		par.resize = s_Resize.m_slider.m_fValue;
+		par.alpha -= fFade * dt;
 		par.size += par.resize * dt;
 		par.angle += par.rotate * dt;
 		par.age += dt;
@@ -484,6 +492,37 @@ void Draw()
 	glPopAttrib();
 }
 
+void FrictionOpt()
+{
+	c_sFriction.m_slider.m_active = !c_sFriction.m_slider.m_active;
+}
+
+void GravityOpt()
+{
+	s_Xg.m_slider.m_active = !s_Xg.m_slider.m_active;
+	s_Yg.m_slider.m_active = !s_Yg.m_slider.m_active;
+}
+
+void SpeedOpt()
+{
+	c_sSlowdown.m_slider.m_active = !c_sSlowdown.m_slider.m_active;
+}
+
+void ResizeOpt()
+{
+	s_Resize.m_slider.m_active = !s_Resize.m_slider.m_active;
+}
+void RotateOpt()
+{
+	s_Rotate.m_slider.m_active = !s_Rotate.m_slider.m_active;
+}
+void FadeOpt()
+{
+	s_Fade.m_slider.m_active = !s_Fade.m_slider.m_active;
+}
+CheckBox SWD;
+CheckBox c_cbGravity,c_cbSpeed,c_cbSize,c_cbRotate,c_cbFade;
+
 void Init()
 {
 	ReadImage(imgBall2D, "art/ball2d.tga");
@@ -532,37 +571,62 @@ void Init()
 	c_cbParticles.m_strText = "Particles";
 	c_cbParticles.m_pOnClick = ToggleParticlesDlg;
 
-	c_sFriction.SetBounds(10, 10, 310, 30);
-	c_sFriction.m_nBackColor = 0xffffff00;
-	c_sFriction.m_nBorderColor = 0xff000000;
-	c_sFriction.m_pchFormat = "%.2f";
+	c_cbParticles.CopyTo(c_cbFriction);
+	c_cbFriction.SetBounds(10,185,200,100);
+	c_cbFriction.m_strText = "Friction";
+	c_cbFriction.m_pOnClick = FrictionOpt;
 
-	c_label.CopyTo(c_sFriction.m_name);
-	c_sFriction.m_name.SetBounds(5, 5, 100, 20);
-	c_sFriction.m_name.m_eAlignH = ALIGN_RIGHT;
-	c_sFriction.m_name.m_strText = "Friction";
-	c_sFriction.m_name.m_nForeColor = 0xff000000;
+	c_sFriction.Init(180,185,310,30,"F",0,1,fParFriction);
+	c_sFriction.m_name.m_pFont = &font;
+	c_sFriction.m_value.m_pFont = &font;
 
-	c_sFriction.m_name.CopyTo(c_sFriction.m_value);
-	c_sFriction.m_value.SetBounds(105, 5, 100, 20);
-	c_sFriction.m_value.m_nForeColor = 0xff000000;
+	c_cbFriction.CopyTo(c_cbGravity);
+	c_cbGravity.SetBounds(10,155,200,100);
+	c_cbGravity.m_strText = "Gravity";
+	c_cbGravity.m_pOnClick = GravityOpt;
 
-	c_sFriction.m_slider.SetBounds(200, 5, 100, 20);
-	c_sFriction.m_slider.m_nBorderColor = 0xff000000;
-	c_sFriction.m_slider.m_nBackColor = 0xffffffff;
-	c_sFriction.m_slider.m_fValue = fParFriction;
-	c_sFriction.m_slider.m_fMax = 1;
-	c_sFriction.m_slider.m_fMin = 0;
+	s_Xg.Init(180,155,310,30,"X",-3.0f,3.0f,fParAccelX);
+	s_Xg.m_name.m_pFont = &font;
+	s_Xg.m_value.m_pFont = &font;
+	s_Yg.Init(180,125,310,30,"Y",-3.0f,3.0f,fParAccelY);
+	s_Yg.m_name.m_pFont = &font;
+	s_Yg.m_value.m_pFont = &font;
 
-	c_sFriction.CopyTo(c_sSlowdown);
-	c_sSlowdown.m_name.m_strText = "Slowdown";
-	c_sSlowdown.m_nBottom = 40;
-	c_sSlowdown.m_slider.m_fValue = 0;
-	c_sSlowdown.m_slider.m_fMax = 3.0f;
-	c_sSlowdown.m_slider.m_fMin = -3.0f;
+	c_cbGravity.CopyTo(c_cbSpeed);
+	c_cbSpeed.SetBounds(10,95,200,100);
+	c_cbSpeed.m_strText = "Speed";
+	c_cbSpeed.m_pOnClick = SpeedOpt;
 
-	c_pParticles.Add(&c_sFriction);
-	c_pParticles.Add(&c_sSlowdown);
+	c_sSlowdown.Init(180,95,310,30,"Slowdown",-3.0f,3.0f,0);
+	c_sSlowdown.m_name.m_pFont = &font;
+	c_sSlowdown.m_value.m_pFont = &font;
+
+	c_cbSpeed.CopyTo(c_cbSize);
+	c_cbSize.SetBounds(10,65,200,100);
+	c_cbSize.m_strText = "Resize";
+	c_cbSize.m_pOnClick = ResizeOpt;
+
+	s_Resize.Init(180,65,310,30,"Size",-0.15f,0.15f,0.0f);
+	s_Resize.m_name.m_pFont = &font;
+	s_Resize.m_value.m_pFont = &font;
+
+	c_cbSize.CopyTo(c_cbRotate);
+	c_cbRotate.SetBounds(10,35,200,100);
+	c_cbRotate.m_strText = "Rotate";
+	c_cbRotate.m_pOnClick = RotateOpt;
+
+	s_Rotate.Init(180,35,310,30,"Rotate",-50,50,0);
+	s_Rotate.m_name.m_pFont = &font;
+	s_Rotate.m_value.m_pFont = &font;
+
+	c_cbRotate.CopyTo(c_cbFade);
+	c_cbFade.SetBounds(10,5,200,100);
+	c_cbFade.m_strText= "Fade";
+	c_cbFade.m_pOnClick = FadeOpt;
+
+	s_Fade.Init(180,5,310,30,"Fade",0.05f,0.5f,0.1f);
+	s_Fade.m_name.m_pFont = &font;
+	s_Fade.m_value.m_pFont = &font;
 
 	c_panel.SetBounds(320, 10, 200, 130);
 	c_panel.m_nBorderColor = 0xff0000ff;
@@ -574,8 +638,21 @@ void Init()
 	c_panel.Add(&c_cbParticles);
 	c_panel.CopyTo(c_pParticles);
 
-	c_pParticles.SetBounds(320, 150, 400, 100);
+	c_pParticles.SetBounds(10, 350, 500, 220);
 	c_pParticles.m_bVisible = false;
+	c_pParticles.Add(&c_sFriction);
+	c_pParticles.Add(&c_sSlowdown);
+	c_pParticles.Add(&c_cbFriction);
+	c_pParticles.Add(&s_Xg);
+	c_pParticles.Add(&s_Yg);
+	c_pParticles.Add(&c_cbGravity);
+	c_pParticles.Add(&c_cbSpeed);
+	c_pParticles.Add(&s_Resize);
+	c_pParticles.Add(&c_cbSize);
+	c_pParticles.Add(&s_Rotate);
+	c_pParticles.Add(&c_cbRotate);
+	c_pParticles.Add(&s_Fade);
+	c_pParticles.Add(&c_cbFade);
 
 	c_container.Add(&c_panel);
 	c_container.Add(&c_pParticles);

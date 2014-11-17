@@ -168,6 +168,8 @@ class Slider : public Panel
 protected:
 	virtual void Draw()
 	{
+		if(m_active)
+		{
 		int x = 0, y = 0;
 		ClientToScreen(x, y);
 		if (m_nBackColor)
@@ -179,9 +181,12 @@ protected:
 			DrawBox(x, y, m_nWidth, m_nHeight, m_nBorderColor, (float)m_nBorderWidth);
 			DrawBox(x + m_nMarginX, y + m_nMarginY, m_nWidth - 2 * m_nMarginX, m_nHeight - 2 * m_nMarginY, m_nBorderColor, (float)m_nBorderWidth);
 		}
+		}
 	}
 	virtual void OnMousePos(int x, int y, BOOL click)
 	{
+		if(m_active)
+		{
 		if (click)
 		{
 			if (x > m_nWidth - m_nMarginX)
@@ -193,11 +198,13 @@ protected:
 			if (m_pOwner)
 				m_pOwner->Invalidate();
 		}
+		}
 	}
 public:
 	int m_nForeColor, m_nMarginX, m_nMarginY;
 	float m_fMin, m_fMax, m_fValue;
-	Slider() :m_nForeColor(0xff00ff00), m_fMin(0), m_fMax(1), m_fValue(0.5), m_nMarginX(5), m_nMarginY(5)
+	bool m_active;
+	Slider() :m_nForeColor(0xff00ff00), m_fMin(0), m_fMax(1), m_fValue(0.5), m_nMarginX(5), m_nMarginY(5),m_active(false)
 	{}
 	float GetRatio() const
 	{
@@ -252,6 +259,39 @@ public:
 		Add(&m_name);
 		Add(&m_value);
 	}
+
+	void Init(int x, int y,int width,int height,char* name,float min,float max,float value)
+	{
+		Font font("Courier New", -16);
+
+		SetBounds(x,y,width,height);
+		m_nBackColor = 0xffffff00;
+		m_nBorderColor = 0xff000000;
+		m_pchFormat = "%.2f";
+
+		m_slider.SetBounds(200,5,100,20);
+		m_slider.m_nBorderColor = 0xff000000;
+		m_slider.m_nBackColor = 0xffffffff;
+		m_slider.m_fMax = max;
+		m_slider.m_fMin = min;
+		m_slider.m_fValue = value;
+
+
+		m_name.SetBounds(5,5,100,20);
+		m_name.m_nForeColor = 0xff000000;
+		m_name.m_nMarginX = 5;
+		m_name.m_nOffsetY = 4;
+		m_name.m_eAlignH = ALIGN_RIGHT;
+		m_name.m_eAlignV = ALIGN_CENTER;
+		m_name.m_strText = name;
+
+		m_name.CopyTo(m_value);
+		m_value.SetBounds(105,5,100,20);
+		m_value.m_nForeColor = 0xff000000;
+	}
+
+
+
 	virtual void Invalidate()
 	{
 		if (m_pchFormat && *m_pchFormat)
@@ -326,6 +366,7 @@ public:
 		other.m_bChecked = m_bChecked;
 	}
 };
+
 
 
 #endif __INPUT_H_
