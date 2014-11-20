@@ -74,11 +74,11 @@ int nMouseX = 0, nMouseY = 0;
 volatile int nNewWinX = -1, nNewWinY = -1, nBallN = 16;
 volatile float fBallR = 0.5f;
 volatile bool bNewBall = false;
-Font font("Courier New", -16);
+Font font("Times New Roman", -16), smallFont("Courier New", -12);
 Event evInput;
 Panel c_panel, c_pParticles;
-Label c_label;
-Button c_bExit;
+Label c_lPath;
+Button c_bExit, c_bOpen;
 CheckBox c_cbFullscreen, c_cbGeometry, c_cbParticles;
 SliderBar c_sFriction, c_sSlowdown;
 Container c_container;
@@ -115,7 +115,8 @@ struct Particle
 	float vx, vy,vz;
 	float angle;
 }
-particles[MAX_PARTICLES] = {0}; 
+particles[MAX_PARTICLES] = {0};
+FileDialog fd;
 
 //=========================================================================================================
 
@@ -131,6 +132,13 @@ void ToggleFullscreen()
 {
 	bCreateFullScreen = !bCreateFullScreen;
 	PostMessage(hWnd, WM_QUIT, 0, 0);
+}
+
+void Browse()
+{
+	const char *pchPath = fd.Open();
+	if( pchPath )
+		c_lPath.m_strText = pchPath;
 }
 
 void ToggleGeometry()
@@ -494,20 +502,26 @@ void Init()
 	texBall.magFilter = GL_LINEAR;
 	texBall.mipmapped = TRUE;
 
+	fd.AddFilter("txt", "Text files");
+	fd.AddFilter("cpp", "Source files");
+	fd.AddFilter("tga", "Image files");
+
 	font.m_bBold = true;
 
-	c_label.SetBounds(-10, 20, 120, 60);
-	c_label.m_strText = "Label text";
-	c_label.m_pFont = &font;
-	c_label.m_nMarginX = 5;
-	c_label.m_nOffsetY = 4;
-	c_label.m_eAlignH = ALIGN_RIGHT;
-	c_label.m_eAlignV = ALIGN_CENTER;
-	c_label.m_nForeColor = 0xff0000ff;
-	c_label.CopyTo(c_bExit);
+	c_lPath.SetBounds(5, 125, 390, 20);
+	c_lPath.m_strText = "";
+	c_lPath.m_pFont = &smallFont;
+	c_lPath.m_nMarginX = 5;
+	c_lPath.m_nOffsetY = 4;
+	c_lPath.m_eAlignH = ALIGN_LEFT;
+	c_lPath.m_eAlignV = ALIGN_CENTER;
+	c_lPath.m_nBorderColor = 0xff000000;
+	c_lPath.m_nForeColor = 0xff0000ff;
+	c_lPath.CopyTo(c_bExit);
 
 	c_bExit.SetBounds(100, 10, 120, 60);
 	c_bExit.m_strText = "Exit";
+	c_bExit.m_pFont = &font;
 	c_bExit.m_eAlignV = ALIGN_CENTER;
 	c_bExit.m_nForeColor = 0xff0000cc;
 	c_bExit.m_nBorderColor = 0xff0000cc;
@@ -515,7 +529,14 @@ void Init()
 	c_bExit.m_nOverColor = 0xff00ffff;
 	c_bExit.m_nClickColor = 0xffccffff;
 	c_bExit.m_pOnClick = Terminate;
+	c_bExit.m_bAutoSize = true;
 	c_bExit.CopyTo(c_cbFullscreen);
+	c_bExit.CopyTo(c_bOpen);
+
+	c_bOpen.m_nLeft = 10;
+	c_bOpen.m_nBottom = 80;
+	c_bOpen.m_strText = "Browse";
+	c_bOpen.m_pOnClick = Browse;
 
 	c_cbFullscreen.m_nBottom = 40;
 	c_cbFullscreen.m_strText = "Fullscreen";
@@ -537,14 +558,17 @@ void Init()
 	c_sFriction.m_nBorderColor = 0xff000000;
 	c_sFriction.m_pchFormat = "%.2f";
 
-	c_label.CopyTo(c_sFriction.m_name);
-	c_sFriction.m_name.SetBounds(5, 5, 100, 20);
+	c_lPath.CopyTo(c_sFriction.m_name);
+	c_sFriction.m_name.m_pFont = &font;
+	c_sFriction.m_name.m_nBorderColor = 0;
+	c_sFriction.m_name.SetBounds(5, 5, 90, 20);
 	c_sFriction.m_name.m_eAlignH = ALIGN_RIGHT;
 	c_sFriction.m_name.m_strText = "Friction";
 	c_sFriction.m_name.m_nForeColor = 0xff000000;
 
 	c_sFriction.m_name.CopyTo(c_sFriction.m_value);
-	c_sFriction.m_value.SetBounds(105, 5, 100, 20);
+	c_sFriction.m_value.SetBounds(105, 5, 90, 20);
+	c_sFriction.m_value.m_eAlignH = ALIGN_CENTER;
 	c_sFriction.m_value.m_nForeColor = 0xff000000;
 
 	c_sFriction.m_slider.SetBounds(200, 5, 100, 20);
@@ -564,10 +588,11 @@ void Init()
 	c_pParticles.Add(&c_sFriction);
 	c_pParticles.Add(&c_sSlowdown);
 
-	c_panel.SetBounds(320, 10, 200, 130);
+	c_panel.SetBounds(320, 10, 400, 150);
 	c_panel.m_nBorderColor = 0xff0000ff;
 	c_panel.m_nBackColor = 0xffffffff;
-	c_panel.Add(&c_label);
+	c_panel.Add(&c_lPath);
+	c_panel.Add(&c_bOpen);
 	c_panel.Add(&c_bExit);
 	c_panel.Add(&c_cbFullscreen);
 	c_panel.Add(&c_cbGeometry);
@@ -617,6 +642,10 @@ BOOL glCreate()
 	if( err )
 		Print("Font creation error: %s\n", err);
 
+	err = smallFont.Create(hDC);
+	if( err )
+		Print("Font creation error: %s\n", err);
+
 	err = texBall.Create(imgBall3D);
 	if( err )
 		Print("Error creating ball texBall: %s", err);
@@ -626,6 +655,8 @@ BOOL glCreate()
 		Print("Error creating particle texBall: %s", err);
 
 	c_container._AdjustSize();
+
+	fd.m_hWnd = hWnd;
 
 	return TRUE;
 }
