@@ -1,5 +1,87 @@
 #include "UI.h"
 
+const char *FileDialog::GetFilterStr()
+{
+	if(!m_lFilters.size())
+		return NULL;
+	if( bFilterModified )
+	{
+		m_strFilter = "";
+		for(auto it = m_lFilters.begin(); it != m_lFilters.end(); it++)
+		{
+			FileFilter &filter = *it;
+			m_strFilter += filter.m_strInfo;
+			m_strFilter += " (*.";
+			m_strFilter += filter.m_strExt;
+			m_strFilter += ")";
+			m_strFilter += '\0';
+			m_strFilter += "*.";
+			m_strFilter += filter.m_strExt;
+			m_strFilter += '\0' ;
+		}
+		m_strFilter += '\0';
+	}
+	return m_strFilter.c_str();
+}
+
+void FileDialog::Fill(OPENFILENAME &ofn, DWORD flags)
+{
+	ZeroMemory(&ofn, sizeof(OPENFILENAME));
+    ofn.lStructSize = sizeof(OPENFILENAME);
+    ofn.hwndOwner = m_hWnd;
+	ofn.lpstrFilter = GetFilterStr();
+	ofn.nFilterIndex = m_uFilterIndex;
+    ofn.lpstrFile = m_pchPath;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.Flags = flags | OFN_EXPLORER | OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT;
+	if(m_strFileDir.size() > 0)
+		ofn.lpstrInitialDir = m_strFileDir.c_str();
+    ofn.lpstrDefExt = m_strDefExt.c_str();
+}
+
+void FileDialog::Parse(const OPENFILENAME &ofn)
+{
+	m_uFilterIndex = ofn.nFilterIndex;
+	GetShortPathName(m_pchPath, m_pchShortPath, MAX_PATH);
+	m_cDrive = m_pchPath[0];
+	m_strFileName = m_pchPath + ofn.nFileOffset;
+	m_strFileDir.assign(m_pchPath, ofn.nFileOffset);
+	if(ofn.nFileExtension > 0)
+	{
+		m_strNameOnly.assign(m_pchPath, ofn.nFileExtension - ofn.nFileOffset - 1, ofn.nFileOffset);
+		m_strFileExt = m_pchPath + ofn.nFileExtension;
+	}
+	else
+	{
+		m_strNameOnly = m_strFileName;
+		m_strFileExt = "";
+	}
+}
+
+const char *FileDialog::Open(const char *pchDirPath)
+{
+	if(pchDirPath)
+		m_strFileDir = pchDirPath;
+	OPENFILENAME ofn;
+	Fill(ofn, OFN_FILEMUSTEXIST);
+    if(!GetOpenFileName(&ofn))
+		return NULL;
+	Parse(ofn);
+	return m_pchPath;
+}
+
+const char *FileDialog::Save(const char *pchFilePath)
+{
+	if(pchFilePath)
+		FORMAT(m_pchPath, "%s", pchFilePath);
+	OPENFILENAME ofn;
+	Fill(ofn);
+    if(!GetSaveFileName(&ofn))
+		return NULL;
+	Parse(ofn);
+	return m_pchPath;
+}
+
 Font::Font(const char *_face, int _height):
 		m_nHeight(_height),m_nWidth(0), m_nFirst(0),m_nCount(0),m_nExpand(0),
 		m_uCharset(ANSI_CHARSET),m_uQuality(ANTIALIASED_QUALITY),
@@ -8,7 +90,6 @@ Font::Font(const char *_face, int _height):
 		m_pnCharWidths(NULL)
 {
 	FORMAT(m_pchFace, _face);
-	ZeroMemory(m_pchFace,FONT_FACE_SIZE);
 }
 
 Font::~Font()
@@ -202,7 +283,8 @@ void Control::Add(Control *child)
 void Control::_AdjustSize()
 {
 	Invalidate();
-	AdjustSize();
+	if( m_bAutoSize )
+		AdjustSize();
 	for(auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
 		(*it)->_AdjustSize();
 }

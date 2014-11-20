@@ -3,6 +3,7 @@
 
 #include <windows.h>			// Windows API Definitions
 #include <list>
+#include <string>
 
 #include "graphics.h"
 
@@ -84,6 +85,61 @@ public:
 	operator bool() const { return IsLoaded(); }
 };
 
+class FileDialog
+{
+protected:
+	void Fill(OPENFILENAME &ofn, DWORD flags = 0);
+	void Parse(const OPENFILENAME &ofn);
+	std::string m_strFilter;
+	bool bFilterModified;
+	struct FileFilter
+	{
+		std::string m_strExt, m_strInfo;
+		FileFilter(const char *ext = NULL, const char *info = NULL)
+		{
+			if(!ext)
+			{
+				m_strExt = "*";
+				m_strInfo = "All Files";
+			}
+			else
+			{
+				m_strExt = ext;
+				m_strInfo = info ? info : "";
+			}
+		}
+	};
+	std::list<FileFilter> m_lFilters;
+	const char *GetFilterStr();
+public:
+	char m_pchPath[MAX_PATH], m_pchShortPath[MAX_PATH];
+	std::string m_strDefExt, m_strFileDir, m_strFileName, m_strFileExt, m_strNameOnly;
+	char m_cDrive;
+	
+	DWORD m_uFilterIndex;
+	HWND m_hWnd;
+
+	FileDialog():m_hWnd(NULL), m_cDrive(0), m_uFilterIndex(0), bFilterModified(false)
+	{
+		m_strFilter.reserve(MAX_PATH);
+		m_pchPath[0] = 0;
+		m_pchShortPath[0] = 0;
+	}
+
+	void AddFilter(const char *ext = NULL, const char *info = NULL)
+	{
+		bFilterModified = true;
+		m_lFilters.push_back(FileFilter(ext, info));
+	}
+	void ClearFilters()
+	{
+		bFilterModified = true;
+		m_lFilters.clear();
+	}
+	const char *Open(const char *pchDirPath = NULL);
+	const char *Save(const char *pchFilePath = NULL);
+};
+
 class Control
 {
 protected:
@@ -95,13 +151,13 @@ protected:
 	virtual void OnMouseEnter(){}
 public:
 	int m_nBottom, m_nLeft, m_nWidth, m_nHeight;
-	bool m_bVisible, m_bDisabled;
+	bool m_bVisible, m_bDisabled, m_bAutoSize;
 	int m_nZ;
 	Control *m_pOwner;
 	std::list<Control *> m_lChilds;
 	Control():
 		m_nZ(0), m_nBottom(0), m_nLeft(0), m_nWidth(0), m_nHeight(0),
-		m_bVisible(true), m_bOver(false), m_bDisabled(false),
+		m_bVisible(true), m_bOver(false), m_bDisabled(false), m_bAutoSize(false),
 		m_pOwner(NULL)
 	{}
 	void ClientToScreen(int &x, int &y) const
@@ -132,6 +188,7 @@ public:
 		other.m_nHeight = m_nHeight;
 		other.m_bVisible = m_bVisible;
 		other.m_bDisabled = m_bDisabled;
+		other.m_bAutoSize = m_bAutoSize;
 		other.m_nZ = m_nZ;
 	}
 	virtual void Invalidate(){}
