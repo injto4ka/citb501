@@ -150,13 +150,14 @@ protected:
 	virtual void OnMouseExit(){}
 	virtual void OnMouseEnter(){}
 public:
-	int m_nBottom, m_nLeft, m_nWidth, m_nHeight;
+	int m_nBottom, m_nLeft, m_nWidth, m_nHeight, m_nAnchorRight, m_nAnchorTop;
 	bool m_bVisible, m_bDisabled, m_bAutoSize;
 	int m_nZ;
 	Control *m_pOwner;
 	std::list<Control *> m_lChilds;
 	Control():
-		m_nZ(0), m_nBottom(0), m_nLeft(0), m_nWidth(0), m_nHeight(0),
+		m_nZ(0), m_nBottom(0), m_nLeft(0), m_nWidth(-1), m_nHeight(-1),
+		m_nAnchorRight(-1), m_nAnchorTop(-1),
 		m_bVisible(true), m_bOver(false), m_bDisabled(false), m_bAutoSize(false),
 		m_pOwner(NULL)
 	{}
@@ -175,10 +176,11 @@ public:
 		y -= m_nBottom;
 	}
 	void SetBounds(int nLeft, int nBottom, int nWidth, int nHeight);
+	void SetAnchor(int nRight, int nTop);
 	void Add(Control *child);
 	void _Draw();
 	bool _OnMousePos(int x, int y, BOOL click);
-	void _AdjustSize();
+	void _AdjustSize(int nWinWidth, int nWinHeight);
 	bool operator < (const Control& other) const { return m_nZ < other.m_nZ; }
 	void CopyTo(Control& other) const
 	{
@@ -194,12 +196,6 @@ public:
 	virtual void Invalidate(){}
 };
 
-class Container : public Control
-{
-public:
-	void _Draw();
-	bool _OnMousePos(int x, int y, BOOL click);
-};
 class Panel: public Control
 {
 protected:

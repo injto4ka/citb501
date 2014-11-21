@@ -280,53 +280,70 @@ void Control::Add(Control *child)
 	m_lChilds.push_back(child);
 	m_lChilds.sort();
 }
-void Control::_AdjustSize()
+void Control::_AdjustSize(int nWinWidth, int nWinHeight)
 {
+	if( m_nAnchorRight >= 0 )
+	{
+		int nWidth = m_pOwner ? m_pOwner->m_nWidth : -1;
+		if( nWidth < 0 )
+			nWidth = nWinWidth;
+		m_nWidth = nWidth - (m_nLeft + m_nAnchorRight);
+	}
+	if( m_nAnchorTop >= 0 )
+	{
+		int nHeight = m_pOwner ? m_pOwner->m_nHeight : -1;
+		if( nHeight < 0 )
+			nHeight = nWinHeight;
+		m_nHeight = nHeight - (m_nBottom + m_nAnchorTop);
+	}
 	Invalidate();
 	if( m_bAutoSize )
 		AdjustSize();
 	for(auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
-		(*it)->_AdjustSize();
+		(*it)->_AdjustSize(nWinWidth, nWinHeight);
 }
 void Control::_Draw()
 {
 	if( !m_bVisible )
 		return;
-	glPushAttrib(GL_ENABLE_BIT);
-	glPushAttrib(GL_SCISSOR_BIT);
-	glEnable(GL_SCISSOR_TEST);
-	GLint box[4] = {};
-	glGetIntegerv(GL_SCISSOR_BOX, box);
-	int x = 0, y = 0;
-	ClientToScreen(x, y);
-	int nLeft = max(box[0], x - 1),
-		nBottom = max(box[1], y - 1),
-		nRight = min(box[0] + box[2], x + m_nWidth + 1),
-		nTop = min(box[1] + box[3], y + m_nHeight + 1);
-	glScissor(nLeft, nBottom, nRight - nLeft, nTop - nBottom);
-	Draw();
-	for(auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
-		(*it)->_Draw();
-	glPopAttrib();
-	glPopAttrib();
+	if( m_nWidth < 0 || m_nHeight < 0 )
+	{
+		for(auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
+			(*it)->_Draw();
+	}
+	else
+	{
+		glPushAttrib(GL_ENABLE_BIT);
+		glPushAttrib(GL_SCISSOR_BIT);
+		glEnable(GL_SCISSOR_TEST);
+		GLint box[4] = {};
+		glGetIntegerv(GL_SCISSOR_BOX, box);
+		int x = 0, y = 0;
+		ClientToScreen(x, y);
+		int nLeft = max(box[0], x - 1),
+			nBottom = max(box[1], y - 1),
+			nRight = min(box[0] + box[2], x + m_nWidth + 1),
+			nTop = min(box[1] + box[3], y + m_nHeight + 1);
+		glScissor(nLeft, nBottom, nRight - nLeft, nTop - nBottom);
+		Draw();
+		for(auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
+			(*it)->_Draw();
+		glPopAttrib();
+		glPopAttrib();
+	}
 }
-void Container::_Draw()
-{
-	for (auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
-		(*it)->_Draw();
-}
-bool Container::_OnMousePos(int x, int y, BOOL click)
-{
-	for (auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
-		if ((*it)->_OnMousePos(x, y, click))
-			return true;
-	return false;
-}
+
 bool Control::_OnMousePos(int x, int y, BOOL click)
 {
 	x -= m_nLeft;
 	y -= m_nBottom;
-	if( m_bDisabled || x < 0 || x >= m_nWidth || y < 0 || y >= m_nHeight )
+	if( m_nWidth < 0 || m_nHeight < 0 )
+	{
+		for (auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
+			if ((*it)->_OnMousePos(x, y, click))
+				return true;
+	}
+	else if( m_bDisabled || x < 0 || x >= m_nWidth || y < 0 || y >= m_nHeight )
 	{
 		if( m_bOver )
 		{
@@ -342,7 +359,6 @@ bool Control::_OnMousePos(int x, int y, BOOL click)
 				}
 			}
 		}
-		return false;
 	}
 	else
 	{
@@ -357,6 +373,7 @@ bool Control::_OnMousePos(int x, int y, BOOL click)
 		OnMousePos(x, y, click);
 		return true;
 	}
+	return false;
 }
 void Control::SetBounds(int nLeft, int nBottom, int nWidth, int nHeight)
 {
@@ -364,6 +381,11 @@ void Control::SetBounds(int nLeft, int nBottom, int nWidth, int nHeight)
 	m_nHeight = nHeight;
 	m_nLeft = nLeft;
 	m_nBottom = nBottom;
+}
+void Control::SetAnchor(int nRight, int nTop)
+{
+	m_nAnchorRight = nRight;
+	m_nAnchorTop = nTop;
 }
 void Panel::DrawBounds(int nBackColor, int nBorderColor, int nBorderWidth)
 {
