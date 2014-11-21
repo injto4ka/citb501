@@ -66,12 +66,12 @@ Transform transform;
 float
 	fPlaneZ = -4.0f,
 	fParPlaneZ = -20.0f,
-	fBallX = 0, fBallY = 0, fBallZ = 0,
+	fBallX = 0, fBallY = 0, fBallZ = 0, fBallA = 0,
 	fBallX0 = 0, fBallY0 = 0,
 	fFrameX = -1.0f, fFrameY = -1.0f, fFrameZ = 0.0f,
-	fBallSpeed = 1.0f;
+	fBallSpeed = 1.0f, fBallRotation = 60.0f;
 int nMouseX = 0, nMouseY = 0;
-volatile int nNewWinX = -1, nNewWinY = -1, nBallN = 16;
+volatile int nNewWinX = -1, nNewWinY = -1, nBallN = 6;
 volatile float fBallR = 0.5f;
 volatile bool bNewBall = false;
 Font font("Times New Roman", -16), smallFont("Courier New", -12);
@@ -333,13 +333,14 @@ void Draw3D()
 		}
 
 		float time = timer.Time();
+		float dt = time - fLastDrawTime;
+		fBallA += fBallRotation * dt;
 		float dx = fFrameX - fBallX, dy = fFrameY - fBallY, fDist2 = dx*dx + dy*dy;
 		if( fDist2 > 1e-6f )
 		{
 			// Interpolate the ball position towards the target position
 			float fDist = sqrtf(fDist2);
 			float fTravelTime = fDist / fBallSpeed;
-			float dt = time - fLastDrawTime;
 			if( dt > fTravelTime )
 			{
 				fBallX = fFrameX;
@@ -364,6 +365,7 @@ void Draw3D()
 
 		glPushMatrix();
 		glTranslatef(fBallX, fBallY, fBallZ);
+		glRotatef(fBallA, 0, 1, 0);
 		texBall.Bind();
 		dlBall.Execute();
 		glPopMatrix();
@@ -617,7 +619,7 @@ void Init()
 	c_pControls.CopyTo(c_pParticles);
 	c_pControls.CopyTo(c_pEditor);
 
-	c_pParticles.SetBounds(320, 150, 400, 100);
+	c_pParticles.SetBounds(320, 170, 400, 100);
 	c_pParticles.m_bVisible = false;
 
 	c_pGame.Add(&c_pControls);
