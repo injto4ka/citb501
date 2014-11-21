@@ -61,19 +61,19 @@ BOOL bKeys[256] = {0};
 std::deque<Input> dInput;
 CriticalSection csInput, csShared;
 Timer timer;
-DisplayList dlBall;
+DisplayList dlBall, dlBrick;
 Transform transform;
 float
 	fPlaneZ = -4.0f,
 	fParPlaneZ = -20.0f,
 	fBallX = 0, fBallY = 0, fBallZ = 0, fBallA = 0,
 	fBallX0 = 0, fBallY0 = 0,
-	fFrameX = -1.0f, fFrameY = -1.0f, fFrameZ = 0.0f,
+	fSelX = -1.0f, fSelY = -1.0f, fSelZ = 0.0f,
 	fBallSpeed = 1.0f, fBallRotation = 60.0f;
 int nMouseX = 0, nMouseY = 0;
 volatile int nNewWinX = -1, nNewWinY = -1, nBallN = 6;
 volatile float fBallR = 0.5f;
-volatile bool bNewBall = false;
+volatile bool bNewBall = false, bNewMouse = false;
 Font font("Times New Roman", -16), smallFont("Courier New", -12);
 Event evInput;
 Panel c_pEditor, c_pGame, c_pControls, c_pParticles;
@@ -82,10 +82,10 @@ Button c_bExit, c_bOpen;
 CheckBox c_cbFullscreen, c_cbGeometry, c_cbParticles;
 SliderBar c_sFriction, c_sSlowdown;
 Control c_container;
-std::list<float> lfFrameIntervals;
+std::list<float> lfSelIntervals;
 const int nMaxFrames = 300;
 float
-	fLastFrameTime = 0, fFrameInterval = 0,
+	fLastFrameTime = 0, fSelInterval = 0,
 	fLastUpdateTime = 0, fUpdateInterval = 0;
 bool bGeometry = false;
 #define MAX_PARTICLES 1200
@@ -118,6 +118,39 @@ struct Particle
 particles[MAX_PARTICLES] = {0};
 FileDialog fd;
 bool bEditor = false;
+
+#define LEVEL_WIDTH 20
+#define LEVEL_HEIGHT 10
+const int nBrickCount = LEVEL_WIDTH * LEVEL_HEIGHT;
+struct Brick
+{
+	int type;
+	float x, y;
+	void Draw() const
+	{
+		switch( type )
+		{
+		case 1:
+			texParticle.Bind();
+			dlBrick.Execute();
+			break;
+		default:
+			texBall.Bind();
+			dlBrick.Execute();
+		}
+	}
+} bricks[ nBrickCount ] = {};
+const float
+	fLevelMinX = -1.7f,
+	fLevelMaxX = 1.7f,
+	fLevelOffsetX = 0,
+	fLevelOffsetY = -0.5f,
+	fLevelMinY = 0.0f,
+	fLevelMaxY = 1.7f,
+	fBallEditorR = 0.07f,
+	fMaxSelDist2 = 0.1f;
+float fJumpEffectZ = 0;
+int nSelectedBrick = -1;
 
 //=========================================================================================================
 
@@ -197,6 +230,7 @@ void Update()
 						{
 							nNewWinX = x;
 							nNewWinY = y;
+							bNewMouse = true;
 						}
 					}
 				}
@@ -271,12 +305,12 @@ void Draw2D()
 	FORMAT(buff, "Ball N %d", nBallN);
 	font.Print(buff, (float)nWinWidth/2, (float)nWinHeight, 0xffffffff, ALIGN_CENTER, ALIGN_TOP);
 
-	lfFrameIntervals.push_back(fFrameInterval);
-	while (lfFrameIntervals.size() > nMaxFrames)
-		lfFrameIntervals.pop_front();
+	lfSelIntervals.push_back(fSelInterval);
+	while (lfSelIntervals.size() > nMaxFrames)
+		lfSelIntervals.pop_front();
 	float fTimeSum = 0;
 	int nFrames = 0;
-	for (auto it = lfFrameIntervals.begin(); it != lfFrameIntervals.end(); it++)
+	for (auto it = lfSelIntervals.begin(); it != lfSelIntervals.end(); it++)
 	{
 		fTimeSum += *it;
 		nFrames++;
@@ -308,8 +342,72 @@ void Draw3D()
 {
 	glTranslatef(0, 0, fPlaneZ);
 
+	bool bUpdateMouse = bNewMouse;
+	bNewMouse = false;
+
+	if( nNewWinY >= 0 )
+	{
+		int nWinX, nWinY;
+		{
+			Lock lock(csShared);
+			nWinX = nNewWinX;
+			nWinY = nNewWinY;
+		}
+		ScreenToScene(nWinX, nWinY, fSelX, fSelY, fSelZ);
+	}
+
+	float time = timer.Time();
+	float dt = time - fLastDrawTime;
+	fLastDrawTime = time;
+
 	if( bEditor )
 	{
+		if( !dlBrick )
+		{
+			CompileDisplayList cds(dlBrick);
+			DrawSphere(fBallEditorR);
+		}
+		if( bUpdateMouse )
+		{
+			int nNewSelectedBrick = -1;
+			float fMinDist2 = 0;
+			for(int i = 0; i < nBrickCount; i++)
+			{
+				const Brick &brick = bricks[i];
+				float dx = fSelX - brick.x, dy = fSelY - brick.y;
+				float fDist2 = dx * dx + dy * dy;
+				if( fDist2 < fMaxSelDist2 && (nNewSelectedBrick < 0 || fDist2 < fMinDist2 ) )
+				{
+					fMinDist2 = fDist2;
+					nNewSelectedBrick = i;
+				}
+			}
+			if( nNewSelectedBrick != nSelectedBrick )
+			{
+				fJumpEffectZ = 0;
+				nSelectedBrick = nNewSelectedBrick;
+			}
+		}
+		for(int i = 0; i < nBrickCount; i++)
+		{
+			const Brick &brick = bricks[i];
+			bool bSelected = i == nSelectedBrick;
+			float z = 0;
+			glPushAttrib(GL_ENABLE_BIT);
+			if( bSelected )
+			{
+				z = 0.1f + 0.1f*sinf(fJumpEffectZ);
+				glDisable(GL_FOG);
+			}
+			glPushMatrix();
+			glTranslatef(brick.x, brick.y, z);
+
+			brick.Draw();
+			
+			glPopAttrib();
+			glPopMatrix();
+		}
+		fJumpEffectZ += PI * dt;
 	}
 	else
 	{
@@ -321,21 +419,8 @@ void Draw3D()
 			bNewBall = false;
 		}
 
-		if( nNewWinY >= 0 )
-		{
-			int nWinX, nWinY;
-			{
-				Lock lock(csShared);
-				nWinX = nNewWinX;
-				nWinY = nNewWinY;
-			}
-			ScreenToScene(nWinX, nWinY, fFrameX, fFrameY, fFrameZ);
-		}
-
-		float time = timer.Time();
-		float dt = time - fLastDrawTime;
 		fBallA += fBallRotation * dt;
-		float dx = fFrameX - fBallX, dy = fFrameY - fBallY, fDist2 = dx*dx + dy*dy;
+		float dx = fSelX - fBallX, dy = fSelY - fBallY, fDist2 = dx*dx + dy*dy;
 		if( fDist2 > 1e-6f )
 		{
 			// Interpolate the ball position towards the target position
@@ -343,25 +428,24 @@ void Draw3D()
 			float fTravelTime = fDist / fBallSpeed;
 			if( dt > fTravelTime )
 			{
-				fBallX = fFrameX;
-				fBallY = fFrameY;
+				fBallX = fSelX;
+				fBallY = fSelY;
 			}
 			else
 			{
 				float progress = dt / fTravelTime;
-				fBallX += (fFrameX - fBallX) * progress;
-				fBallY += (fFrameY - fBallY) * progress;
+				fBallX += (fSelX - fBallX) * progress;
+				fBallY += (fSelY - fBallY) * progress;
 			}
 		}
 		else
 		{
-			fBallX = fFrameX;
-			fBallY = fFrameY;
+			fBallX = fSelX;
+			fBallY = fSelY;
 		}
-		fLastDrawTime = time;
 
-		DrawLine(fFrameX, fFrameY, fFrameZ, fBallX, fBallY, fBallZ, 0xff00ffff);
-		DrawFrame(fFrameX, fFrameY, fFrameZ);
+		DrawLine(fSelX, fSelY, fSelZ, fBallX, fBallY, fBallZ, 0xff00ffff);
+		DrawFrame(fSelX, fSelY, fSelZ);
 
 		glPushMatrix();
 		glTranslatef(fBallX, fBallY, fBallZ);
@@ -412,7 +496,7 @@ void DrawPar()
 			}
 
 			float fSlowdown = expf(0.69314718056f * c_sSlowdown.m_slider.m_fValue);
-			float dt = fFrameInterval / fSlowdown;
+			float dt = fSelInterval / fSlowdown;
 			par.x += par.vx * dt;
 			par.y += par.vy * dt;
 			par.z += par.vz * dt;
@@ -446,7 +530,7 @@ void DrawPar()
 void Draw()
 {
 	float time = timer.Time();
-	fFrameInterval = time - fLastFrameTime;
+	fSelInterval = time - fLastFrameTime;
 	fLastFrameTime = time;
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -631,6 +715,20 @@ void Init()
 
 	c_container.Add(&c_pGame);
 	c_container.Add(&c_pEditor);
+
+	for(int y = 0, o = 0; y < LEVEL_HEIGHT; y++)
+	{
+		float fPosY = fLevelOffsetY + fLevelMinY + (fLevelMaxY - fLevelMinY) * y / (LEVEL_HEIGHT - 1);
+		for(int x = 0; x < LEVEL_WIDTH; x++, o++)
+		{
+			float fPosX = fLevelOffsetX + fLevelMinX + (fLevelMaxX - fLevelMinX) * x / (LEVEL_WIDTH - 1);
+			Brick &brick = bricks[o];
+			brick.x = fPosX;
+			brick.y = fPosY;
+		}
+	}
+	for(int i = 0; i < 30; i++)
+		bricks[Random(0, nBrickCount)].type = 1;
 }
 
 void Redraw()
@@ -701,6 +799,7 @@ void glDestroy()
 	texBall.Destroy();
 	texParticle.Destroy();
 	dlBall.Destroy();
+	dlBrick.Destroy();
 }
 
 //================================================================================================================
