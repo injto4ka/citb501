@@ -275,88 +275,113 @@ GLvoid DrawFrame(float x, float y, float z, float r, float w)
 
 GLvoid DrawSphere(float R, int nDivs)
 {
-	if(R < 0 || nDivs <= 0)
+	if(R < 0 || nDivs <= 1)
 		return;
-	int nLat = nDivs;
-	int nLon = 2 * nDivs;
+	int nLat = 2 * nDivs;
+	int nLon = 4 * nDivs;
 	float
-		u = 0, v = 0, du = 1.0f/nLon, dv = 1.0f/nLat, 
+		u = 0, v = 0, v0 = 0, du = 1.0f/nLon, dv = 1.0f/nLat, 
 		N[3], 
-		lat = -0.5*PI, lon = 0, 
-		dlat = PI/nLat, dlon = 2*PI/nLon, 
+		lat = -0.5*PI, lon = 0, r = 0, r0 = 0, 
+		dlat = PI/nLat, dlon = 2*PI/nLon,
 		clat, slat, 
-		clat0 = 0, slat0 = -1, 
-		clon, slon, 
-		clon0 = 1, slon0 = 0;
-
-	glBegin(GL_QUADS); // Start Drawing Quads
-	for(int i = 0;i < nLat;i++)
+		clat0 = 0, slat0 = -1;
+	bool bStart = true, bEnd = false;
+	glBegin(GL_TRIANGLE_STRIP); // Start Drawing Quads
+	for(int i = 0; i < nLat; i++)
 	{
 		// lat update
-		lat += dlat;
-		clat = cosf(lat);
-		slat = sinf(lat);
+		if( i == nLat - 1 )
+		{
+			bEnd = true;
+			r = 0;
+			lat = 0.5*PI;
+			clat = 0;
+			slat = 1;
+		}
+		else
+		{
+			r = min(nLat - i - 1, i + 1) * dv;
+			lat += dlat;
+			clat = cosf(lat);
+			slat = sinf(lat);
+		}
 		
-		u = 0;
-		for(int j = 0;j < nLon;j++)
+		float u0 = 0, lon = 0, u = 0;
+
+		N[0] = clat0;
+		N[1] = 0;
+		N[2] = slat0;
+		glNormal3d(N[0], N[1], N[2]);
+		glTexCoord2d(0.5f + r0, 0.5f);
+		glVertex3d(N[0]*R, N[1]*R, N[2]*R);
+
+		N[0] = clat;
+		N[1] = 0;
+		N[2] = slat;
+		glNormal3d(N[0], N[1], N[2]);
+		glTexCoord2d(0.5f + r, 0.5f);
+		glVertex3d(N[0]*R, N[1]*R, N[2]*R);
+
+		bool bEven = true;
+		for(int j = 0; j < nLon; j++)
 		{
 			// lon update
-			lon += dlon;
-			clon = cosf(lon);
-			slon = sinf(lon);
+			float clon, slon;
+			if( j == nLon - 1 )
+			{
+				u = 1;
+				lon = 2*PI;
+				clon = 1;
+				slon = 0;
+			}
+			else
+			{
+				u += du;
+				lon += dlon;
+				clon = cosf(lon);
+				slon = sinf(lon);
+			}
 			
 			///////////////////////////////////////////
 			// 
 			//		(u, v+dv)	(u+du, v+dv)
-			//		P3----------P2	lon
+			//		P3----------P2	lat
 			//		|			|
 			//		|			|	/\
 			//		|			|
-			//		P0----------P1	lon0
+			//		P0----------P1	lat0
 			//		(u, v)		(u+du, v)	
-			//		lat0	>	lat
+			//		lon0	>	lon
 			//
 			///////////////////////////////////////////
-
-			// P0: lat = lat0, lon = lon0
-			N[0] = clon0*clat0;
-			N[1] = slon0*clat0;
-			N[2] = slat0;
-			glNormal3d(N[0], N[1], N[2]);
-			glTexCoord2d(u, v);
-			glVertex3d(N[0]*R, N[1]*R, N[2]*R);
 			
-			// P1: lat = lat0, lon = lon
-			N[0] = clon*clat0;
-			N[1] = slon*clat0;
-			N[2] = slat0;
-			glNormal3d(N[0], N[1], N[2]);
-			glTexCoord2d(u+du, v);
-			glVertex3d(N[0]*R, N[1]*R, N[2]*R);
+			bEven = !bEven;
+			if( !bStart || bEven )
+			{
+				N[0] = clon*clat0;
+				N[1] = slon*clat0;
+				N[2] = slat0;
+				glNormal3d(N[0], N[1], N[2]);
+				glTexCoord2d(0.5f + r0 * clon, 0.5f + r0 * slon);
+				glVertex3d(N[0]*R, N[1]*R, N[2]*R);
+			}
 
-			// P2: lat = lat, lon = lon
-			N[0] = clon*clat;
-			N[1] = slon*clat;
-			N[2] = slat;
-			glNormal3d(N[0], N[1], N[2]);
-			glTexCoord2d(u+du, v+dv);
-			glVertex3d(N[0]*R, N[1]*R, N[2]*R);
-
-			// P3: lat = lat, lon = lon0
-			N[0] = clon0*clat;
-			N[1] = slon0*clat;
-			N[2] = slat;
-			glNormal3d(N[0], N[1], N[2]);
-			glTexCoord2d(u, v+dv);
-			glVertex3d(N[0]*R, N[1]*R, N[2]*R);
-			
-			clon0 = clon;
-			slon0 = slon;
-			u += du;
+			if( !bEnd || bEven )
+			{
+				N[0] = clon*clat;
+				N[1] = slon*clat;
+				N[2] = slat;
+				glNormal3d(N[0], N[1], N[2]);
+				glTexCoord2d(0.5f + r * clon, 0.5f + r * slon);
+				glVertex3d(N[0]*R, N[1]*R, N[2]*R);
+			}
 		}
 		clat0 = clat;
 		slat0 = slat;
-		v += dv;
+		v0 = v;
+		r0 = r;
+		bStart = false;
 	}
 	glEnd();
 }

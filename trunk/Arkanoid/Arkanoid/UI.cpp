@@ -335,15 +335,12 @@ void Control::_Draw()
 
 bool Control::_OnMousePos(int x, int y, BOOL click)
 {
+	if( !m_bVisible )
+		return false;
 	x -= m_nLeft;
 	y -= m_nBottom;
-	if( m_nWidth < 0 || m_nHeight < 0 )
-	{
-		for (auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
-			if ((*it)->_OnMousePos(x, y, click))
-				return true;
-	}
-	else if( m_bDisabled || x < 0 || x >= m_nWidth || y < 0 || y >= m_nHeight )
+	bool m_bValid = m_nWidth >= 0 && m_nHeight >= 0;
+	if( m_bDisabled || m_bValid && (x < 0 || x >= m_nWidth || y < 0 || y >= m_nHeight) )
 	{
 		if( m_bOver )
 		{
@@ -370,8 +367,11 @@ bool Control::_OnMousePos(int x, int y, BOOL click)
 		for (auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
 			if ((*it)->_OnMousePos(x, y, click))
 				return true;
-		OnMousePos(x, y, click);
-		return true;
+		if( m_bValid )
+		{
+			OnMousePos(x, y, click);
+			return true;
+		}
 	}
 	return false;
 }
