@@ -76,12 +76,12 @@ volatile float fBallR = 0.5f;
 volatile bool bNewBall = false;
 Font font("Times New Roman", -16), smallFont("Courier New", -12);
 Event evInput;
-Panel c_panel, c_pParticles;
+Panel c_pEditor, c_pGame, c_pControls, c_pParticles;
 Label c_lPath;
 Button c_bExit, c_bOpen;
 CheckBox c_cbFullscreen, c_cbGeometry, c_cbParticles;
 SliderBar c_sFriction, c_sSlowdown;
-Container c_container;
+Control c_container;
 std::list<float> lfFrameIntervals;
 const int nMaxFrames = 300;
 float
@@ -117,6 +117,7 @@ struct Particle
 }
 particles[MAX_PARTICLES] = {0};
 FileDialog fd;
+bool bEditor = false;
 
 //=========================================================================================================
 
@@ -132,6 +133,13 @@ void ToggleFullscreen()
 {
 	bCreateFullScreen = !bCreateFullScreen;
 	PostMessage(hWnd, WM_QUIT, 0, 0);
+}
+
+void ToggleEditor()
+{
+	bEditor = !bEditor;
+	c_pGame.m_bVisible = !bEditor;
+	c_pEditor.m_bVisible = bEditor;
 }
 
 void Browse()
@@ -204,6 +212,9 @@ void Update()
 					case VK_F11:
 						ToggleFullscreen();
 						break;
+					case VK_F3:
+						ToggleEditor();
+						break;
 					case VK_F4:
 						Terminate();
 						break;
@@ -244,27 +255,15 @@ void Update()
 			}
 		}
 	}
+}
 
-	if( !bKeys[VK_MENU] )
-	{
-		if (bKeys[VK_NUMPAD8] && (fParAccelY<10)) fParAccelY += 0.5f * fUpdateInterval;
-		if (bKeys[VK_NUMPAD2] && (fParAccelY>-10)) fParAccelY -= 0.5f * fUpdateInterval;
-
-		if (bKeys[VK_NUMPAD6] && (fParAccelX<10)) fParAccelX += 0.5f * fUpdateInterval;
-		if (bKeys[VK_NUMPAD4] && (fParAccelX>-10)) fParAccelX -= 0.5f * fUpdateInterval;
-
-		if (bKeys[VK_UP] && (fParSpeedY < 20)) fParSpeedY += 5 * fUpdateInterval;
-		if (bKeys[VK_DOWN] && (fParSpeedY >- 20)) fParSpeedY -= 5 * fUpdateInterval;
-
-		if (bKeys[VK_RIGHT] && (fParSpeedX < 20)) fParSpeedX += 5 * fUpdateInterval;
-		if (bKeys[VK_LEFT] && (fParSpeedX >- 20)) fParSpeedX -= 5 * fUpdateInterval;
-	}
+void DrawUI()
+{
+	c_container._Draw();
 }
 
 void Draw2D()
 {
-	imgBall2D.Draw(0, 0);
-
 	char buff[128];
 	FORMAT(buff, "(%d, %d)", nMouseX, nMouseY);
 	font.Print(buff, (float)nWinWidth - 5, (float)nWinHeight, 0xffffffff, ALIGN_RIGHT, ALIGN_TOP);
@@ -287,6 +286,11 @@ void Draw2D()
 		FORMAT(buff, "%.1f", nFrames / fTimeSum);
 		font.Print(buff, 5, (float)nWinHeight, 0xffffffff, ALIGN_LEFT, ALIGN_TOP);
 	}
+
+	if( !bEditor )
+	{
+		imgBall2D.Draw(0, 0);
+	}
 }
 
 void ScreenToScene(int x0, int y0, float &x, float &y, float &z)
@@ -302,125 +306,138 @@ void ScreenToScene(int x0, int y0, float &x, float &y, float &z)
 
 void Draw3D()
 {
-	if( !dlBall || bNewBall )
-	{
-		Lock lock(csShared);
-		CompileDisplayList cds(dlBall);
-		DrawSphere(fBallR, nBallN);
-		bNewBall = false;
-	}
-
 	glTranslatef(0, 0, fPlaneZ);
 
-	if( nNewWinY >= 0 )
+	if( bEditor )
 	{
-		int nWinX, nWinY;
+	}
+	else
+	{
+		if( !dlBall || bNewBall )
 		{
 			Lock lock(csShared);
-			nWinX = nNewWinX;
-			nWinY = nNewWinY;
+			CompileDisplayList cds(dlBall);
+			DrawSphere(fBallR, nBallN);
+			bNewBall = false;
 		}
-		ScreenToScene(nWinX, nWinY, fFrameX, fFrameY, fFrameZ);
-	}
 
-	float time = timer.Time();
-	float dx = fFrameX - fBallX, dy = fFrameY - fBallY, fDist2 = dx*dx + dy*dy;
-	if( fDist2 > 1e-6f )
-	{
-		// Interpolate the ball position towards the target position
-		float fDist = sqrtf(fDist2);
-		float fTravelTime = fDist / fBallSpeed;
-		float dt = time - fLastDrawTime;
-		if( dt > fTravelTime )
+		if( nNewWinY >= 0 )
+		{
+			int nWinX, nWinY;
+			{
+				Lock lock(csShared);
+				nWinX = nNewWinX;
+				nWinY = nNewWinY;
+			}
+			ScreenToScene(nWinX, nWinY, fFrameX, fFrameY, fFrameZ);
+		}
+
+		float time = timer.Time();
+		float dx = fFrameX - fBallX, dy = fFrameY - fBallY, fDist2 = dx*dx + dy*dy;
+		if( fDist2 > 1e-6f )
+		{
+			// Interpolate the ball position towards the target position
+			float fDist = sqrtf(fDist2);
+			float fTravelTime = fDist / fBallSpeed;
+			float dt = time - fLastDrawTime;
+			if( dt > fTravelTime )
+			{
+				fBallX = fFrameX;
+				fBallY = fFrameY;
+			}
+			else
+			{
+				float progress = dt / fTravelTime;
+				fBallX += (fFrameX - fBallX) * progress;
+				fBallY += (fFrameY - fBallY) * progress;
+			}
+		}
+		else
 		{
 			fBallX = fFrameX;
 			fBallY = fFrameY;
 		}
-		else
-		{
-			float progress = dt / fTravelTime;
-			fBallX += (fFrameX - fBallX) * progress;
-			fBallY += (fFrameY - fBallY) * progress;
-		}
-	}
-	else
-	{
-		fBallX = fFrameX;
-		fBallY = fFrameY;
-	}
-	fLastDrawTime = time;
+		fLastDrawTime = time;
 
-	DrawLine(fFrameX, fFrameY, fFrameZ, fBallX, fBallY, fBallZ, 0xff00ffff);
-	DrawFrame(fFrameX, fFrameY, fFrameZ);
+		DrawLine(fFrameX, fFrameY, fFrameZ, fBallX, fBallY, fBallZ, 0xff00ffff);
+		DrawFrame(fFrameX, fFrameY, fFrameZ);
 
-	glPushMatrix();
-	glTranslatef(fBallX, fBallY, fBallZ);
-	texBall.Bind();
-	dlBall.Execute();
-	glPopMatrix();
+		glPushMatrix();
+		glTranslatef(fBallX, fBallY, fBallZ);
+		texBall.Bind();
+		dlBall.Execute();
+		glPopMatrix();
+	}
 }
 
 void DrawPar()
 {
 	glTranslatef(0, 0, fParPlaneZ);
-	texParticle.Bind();
 
-	float x0, y0, z0;
-	ScreenToScene(200, 300, x0, y0, z0);
-
-	for (int loop = 0; loop < MAX_PARTICLES; loop++)                   // Loop Through All The Particles
+	if( bEditor )
 	{
-		auto &par = particles[loop];
-		if (par.alpha <= 0 || par.age > fParMaxAge)
+	}
+	else
+	{
+		texParticle.Bind();
+
+		float x0, y0, z0;
+		ScreenToScene(200, 300, x0, y0, z0);
+
+		for (int loop = 0; loop < MAX_PARTICLES; loop++)                   // Loop Through All The Particles
 		{
-			par.age = 0;
-			par.alpha = Random(0.0f, 1.0f);
-			par.fade = Random(fParFadeMin, fParFadeMax);
-			par.resize = Random(fParResizeMin, fParResizeMax);
-			par.rotate = Random(fParRotateMin, fParRotateMax);
-			par.size = Random(fParSizeMin, fParSizeMax);
-			par.x = x0;
-			par.y = y0;
-			par.z = z0;
-			float fAngle = Random(0.0f, 2*PI);
-			float fParSpeedInit = Random(fParSpeedInitMin, fParSpeedInitMax);
-			par.vx = fParSpeedX + fParSpeedInit * cosf(fAngle);
-			par.vy = fParSpeedY + fParSpeedInit * sinf(fAngle);
-			par.vz = Random(-fParSpeedInit, fParSpeedInit);
-			float *fColor = pfParColors[(loop / 100) % 12];
-			par.r = fColor[0];
-			par.g = fColor[1];
-			par.b = fColor[2];
+			auto &par = particles[loop];
+			if (par.alpha <= 0 || par.age > fParMaxAge)
+			{
+				par.age = 0;
+				par.alpha = Random(0.0f, 1.0f);
+				par.fade = Random(fParFadeMin, fParFadeMax);
+				par.resize = Random(fParResizeMin, fParResizeMax);
+				par.rotate = Random(fParRotateMin, fParRotateMax);
+				par.size = Random(fParSizeMin, fParSizeMax);
+				par.x = x0;
+				par.y = y0;
+				par.z = z0;
+				float fAngle = Random(0.0f, 2*PI);
+				float fParSpeedInit = Random(fParSpeedInitMin, fParSpeedInitMax);
+				par.vx = fParSpeedX + fParSpeedInit * cosf(fAngle);
+				par.vy = fParSpeedY + fParSpeedInit * sinf(fAngle);
+				par.vz = Random(-fParSpeedInit, fParSpeedInit);
+				float *fColor = pfParColors[(loop / 100) % 12];
+				par.r = fColor[0];
+				par.g = fColor[1];
+				par.b = fColor[2];
+			}
+
+			float fSlowdown = expf(0.69314718056f * c_sSlowdown.m_slider.m_fValue);
+			float dt = fFrameInterval / fSlowdown;
+			par.x += par.vx * dt;
+			par.y += par.vy * dt;
+			par.z += par.vz * dt;
+
+			float fFriction = c_sFriction.m_slider.m_fValue;
+			par.vx += (fParAccelX - fFriction * par.vx) * dt;
+			par.vy += (fParAccelY - fFriction * par.vy) * dt;
+			par.vz += (fParAccelZ - fFriction * par.vz) * dt;
+
+			par.alpha -= par.fade * dt;
+			par.size += par.resize * dt;
+			par.angle += par.rotate * dt;
+			par.age += dt;
+
+			glColor4f(par.r, par.g, par.b, par.alpha); // Material color
+			glPushMatrix();
+			glTranslatef(par.x, par.y, par.z);
+			glRotatef(par.angle, 0, 0, 1);
+			glBegin(GL_TRIANGLE_STRIP);
+				float s = par.size;
+				glTexCoord2d(1, 1); glVertex3f(s, s, 0); // Top Right
+				glTexCoord2d(0, 1); glVertex3f(-s, s, 0); // Top Left
+				glTexCoord2d(1, 0); glVertex3f(s, -s, 0); // Bottom Right
+				glTexCoord2d(0, 0); glVertex3f(-s, -s, 0); // Bottom Left
+			glEnd();
+			glPopMatrix();
 		}
-
-		float fSlowdown = expf(0.69314718056f * c_sSlowdown.m_slider.m_fValue);
-		float dt = fFrameInterval / fSlowdown;
-		par.x += par.vx * dt;
-		par.y += par.vy * dt;
-		par.z += par.vz * dt;
-
-		float fFriction = c_sFriction.m_slider.m_fValue;
-		par.vx += (fParAccelX - fFriction * par.vx) * dt;
-		par.vy += (fParAccelY - fFriction * par.vy) * dt;
-		par.vz += (fParAccelZ - fFriction * par.vz) * dt;
-
-		par.alpha -= par.fade * dt;
-		par.size += par.resize * dt;
-		par.angle += par.rotate * dt;
-		par.age += dt;
-
-		glColor4f(par.r, par.g, par.b, par.alpha); // Material color
-		glPushMatrix();
-		glTranslatef(par.x, par.y, par.z);
-		glRotatef(par.angle, 0, 0, 1);
-		glBegin(GL_TRIANGLE_STRIP);
-			float s = par.size;
-			glTexCoord2d(1, 1); glVertex3f(s, s, 0); // Top Right
-			glTexCoord2d(0, 1); glVertex3f(-s, s, 0); // Top Left
-			glTexCoord2d(1, 0); glVertex3f(s, -s, 0); // Bottom Right
-			glTexCoord2d(0, 0); glVertex3f(-s, -s, 0); // Bottom Left
-		glEnd();
-		glPopMatrix();
 	}
 }
 
@@ -488,7 +505,7 @@ void Draw()
 	glLoadIdentity();
 	Draw2D();
 	glLoadIdentity();
-	c_container._Draw();
+	DrawUI();
 	glPopAttrib();
 }
 
@@ -588,28 +605,43 @@ void Init()
 	c_pParticles.Add(&c_sFriction);
 	c_pParticles.Add(&c_sSlowdown);
 
-	c_panel.SetBounds(320, 10, 400, 150);
-	c_panel.m_nBorderColor = 0xff0000ff;
-	c_panel.m_nBackColor = 0xffffffff;
-	c_panel.Add(&c_lPath);
-	c_panel.Add(&c_bOpen);
-	c_panel.Add(&c_bExit);
-	c_panel.Add(&c_cbFullscreen);
-	c_panel.Add(&c_cbGeometry);
-	c_panel.Add(&c_cbParticles);
-	c_panel.CopyTo(c_pParticles);
+	c_pControls.SetBounds(320, 10, 400, 150);
+	c_pControls.m_nBorderColor = 0xff0000ff;
+	c_pControls.m_nBackColor = 0xffffffff;
+	c_pControls.Add(&c_lPath);
+	c_pControls.Add(&c_bOpen);
+	c_pControls.Add(&c_bExit);
+	c_pControls.Add(&c_cbFullscreen);
+	c_pControls.Add(&c_cbGeometry);
+	c_pControls.Add(&c_cbParticles);
+	c_pControls.CopyTo(c_pParticles);
+	c_pControls.CopyTo(c_pEditor);
 
 	c_pParticles.SetBounds(320, 150, 400, 100);
 	c_pParticles.m_bVisible = false;
 
-	c_container.Add(&c_panel);
-	c_container.Add(&c_pParticles);
+	c_pGame.Add(&c_pControls);
+	c_pGame.Add(&c_pParticles);
+
+	c_pEditor.SetBounds(10, 10, 600, 100);
+	c_pEditor.SetAnchor(10, -1);
+	c_pEditor.m_bVisible = false;
+
+	c_container.Add(&c_pGame);
+	c_container.Add(&c_pEditor);
 }
 
 void Redraw()
 {
 	Draw();
 	SwapBuffers(hDC);
+}
+
+void Reshape()
+{
+	glViewport(0, 0, nWinWidth, nWinHeight);
+	glScissor(0, 0, nWinWidth, nWinHeight);
+	c_container._AdjustSize(nWinWidth, nWinHeight);
 }
 
 BOOL glCreate()
@@ -654,9 +686,9 @@ BOOL glCreate()
 	if( err )
 		Print("Error creating particle texBall: %s", err);
 
-	c_container._AdjustSize();
-
 	fd.m_hWnd = hWnd;
+
+	Reshape();
 
 	return TRUE;
 }
@@ -670,11 +702,6 @@ void glDestroy()
 }
 
 //================================================================================================================
-
-void Reshape()
-{
-	glViewport (0, 0, nWinWidth, nWinHeight);
-}
 
 void InitWindow()
 {
@@ -768,7 +795,6 @@ BOOL CreateNewWindow()
 					if (wglMakeCurrent(hDC, hRC))
 					{
 						ShowWindow (hWnd, nShow);
-						Reshape();	
 						return TRUE;
 					}
 					wglDeleteContext (hRC);
