@@ -1,86 +1,5 @@
 #include "UI.h"
-
-const char *FileDialog::GetFilterStr()
-{
-	if(!m_lFilters.size())
-		return NULL;
-	if( bFilterModified )
-	{
-		m_strFilter = "";
-		for(auto it = m_lFilters.begin(); it != m_lFilters.end(); it++)
-		{
-			FileFilter &filter = *it;
-			m_strFilter += filter.m_strInfo;
-			m_strFilter += " (*.";
-			m_strFilter += filter.m_strExt;
-			m_strFilter += ")";
-			m_strFilter += '\0';
-			m_strFilter += "*.";
-			m_strFilter += filter.m_strExt;
-			m_strFilter += '\0' ;
-		}
-		m_strFilter += '\0';
-	}
-	return m_strFilter.c_str();
-}
-
-void FileDialog::Fill(OPENFILENAME &ofn, DWORD flags)
-{
-	ZeroMemory(&ofn, sizeof(OPENFILENAME));
-    ofn.lStructSize = sizeof(OPENFILENAME);
-    ofn.hwndOwner = m_hWnd;
-	ofn.lpstrFilter = GetFilterStr();
-	ofn.nFilterIndex = m_uFilterIndex;
-    ofn.lpstrFile = m_pchPath;
-    ofn.nMaxFile = MAX_PATH;
-    ofn.Flags = flags | OFN_EXPLORER | OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT;
-	if(m_strFileDir.size() > 0)
-		ofn.lpstrInitialDir = m_strFileDir.c_str();
-    ofn.lpstrDefExt = m_strDefExt.c_str();
-}
-
-void FileDialog::Parse(const OPENFILENAME &ofn)
-{
-	m_uFilterIndex = ofn.nFilterIndex;
-	GetShortPathName(m_pchPath, m_pchShortPath, MAX_PATH);
-	m_cDrive = m_pchPath[0];
-	m_strFileName = m_pchPath + ofn.nFileOffset;
-	m_strFileDir.assign(m_pchPath, ofn.nFileOffset);
-	if(ofn.nFileExtension > 0)
-	{
-		m_strNameOnly.assign(m_pchPath, ofn.nFileExtension - ofn.nFileOffset - 1, ofn.nFileOffset);
-		m_strFileExt = m_pchPath + ofn.nFileExtension;
-	}
-	else
-	{
-		m_strNameOnly = m_strFileName;
-		m_strFileExt = "";
-	}
-}
-
-const char *FileDialog::Open(const char *pchDirPath)
-{
-	if(pchDirPath)
-		m_strFileDir = pchDirPath;
-	OPENFILENAME ofn;
-	Fill(ofn, OFN_FILEMUSTEXIST);
-    if(!GetOpenFileName(&ofn))
-		return NULL;
-	Parse(ofn);
-	return m_pchPath;
-}
-
-const char *FileDialog::Save(const char *pchFilePath)
-{
-	if(pchFilePath)
-		FORMAT(m_pchPath, "%s", pchFilePath);
-	OPENFILENAME ofn;
-	Fill(ofn);
-    if(!GetSaveFileName(&ofn))
-		return NULL;
-	Parse(ofn);
-	return m_pchPath;
-}
+#include <algorithm>
 
 Font::Font(const char *_face, int _height):
 		m_nHeight(_height),m_nWidth(0), m_nFirst(0),m_nCount(0),m_nExpand(0),
@@ -276,9 +195,10 @@ void Font::Print(const char *pchText, float x, float y, int nColor, int eAlignH,
 
 void Control::Add(Control *child)
 {
+	child->Invalidate();
 	child->m_pOwner = this;
-	m_lChilds.push_back(child);
-	m_lChilds.sort();
+	m_vChilds.push_back(child);
+	std::sort(m_vChilds.begin(), m_vChilds.end());
 }
 void Control::_AdjustSize(int nWinWidth, int nWinHeight)
 {
@@ -296,11 +216,16 @@ void Control::_AdjustSize(int nWinWidth, int nWinHeight)
 			nHeight = nWinHeight;
 		m_nHeight = nHeight - (m_nBottom + m_nAnchorTop);
 	}
-	Invalidate();
+	for(size_t i = 0; i < m_vChilds.size(); i++)
+		m_vChilds[i]->_AdjustSize(nWinWidth, nWinHeight);
 	if( m_bAutoSize )
 		AdjustSize();
-	for(auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
-		(*it)->_AdjustSize(nWinWidth, nWinHeight);
+}
+void Control::_Invalidate()
+{
+	Invalidate();
+	for(size_t i = 0; i < m_vChilds.size(); i++)
+		m_vChilds[i]->_Invalidate();
 }
 void Control::_Draw()
 {
@@ -308,8 +233,8 @@ void Control::_Draw()
 		return;
 	if( m_nWidth < 0 || m_nHeight < 0 )
 	{
-		for(auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
-			(*it)->_Draw();
+		for(size_t i = 0; i < m_vChilds.size(); i++)
+			m_vChilds[i]->_Draw();
 	}
 	else
 	{
@@ -326,8 +251,8 @@ void Control::_Draw()
 			nTop = min(box[1] + box[3], y + m_nHeight + 1);
 		glScissor(nLeft, nBottom, nRight - nLeft, nTop - nBottom);
 		Draw();
-		for(auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
-			(*it)->_Draw();
+		for(size_t i = 0; i < m_vChilds.size(); i++)
+			m_vChilds[i]->_Draw();
 		glPopAttrib();
 		glPopAttrib();
 	}
@@ -346,9 +271,9 @@ bool Control::_OnMousePos(int x, int y, BOOL click)
 		{
 			m_bOver = false;
 			OnMouseExit();
-			for(auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
+			for(size_t i = 0; i < m_vChilds.size(); i++)
 			{
-				Control *pChild = *it;
+				Control *pChild = m_vChilds[i];
 				if( pChild->m_bOver )
 				{
 					pChild->m_bOver = false;
@@ -364,8 +289,8 @@ bool Control::_OnMousePos(int x, int y, BOOL click)
 			m_bOver = true;
 			OnMouseEnter();
 		}
-		for (auto it = m_lChilds.begin(); it != m_lChilds.end(); it++)
-			if ((*it)->_OnMousePos(x, y, click))
+		for(int i = (int)m_vChilds.size() - 1; i >= 0 ; i--)
+			if (m_vChilds[i]->_OnMousePos(x, y, click))
 				return true;
 		if( m_bValid )
 		{
@@ -382,12 +307,23 @@ void Control::SetBounds(int nLeft, int nBottom, int nWidth, int nHeight)
 	m_nLeft = nLeft;
 	m_nBottom = nBottom;
 }
+void Control::CopyTo(Control& other) const
+{
+	other.m_nBottom = m_nBottom;
+	other.m_nLeft = m_nLeft;
+	other.m_nWidth = m_nWidth;
+	other.m_nHeight = m_nHeight;
+	other.m_bVisible = m_bVisible;
+	other.m_bDisabled = m_bDisabled;
+	other.m_bAutoSize = m_bAutoSize;
+	other.m_nZ = m_nZ;
+}
 void Control::SetAnchor(int nRight, int nTop)
 {
 	m_nAnchorRight = nRight;
 	m_nAnchorTop = nTop;
 }
-void Panel::DrawBounds(int nBackColor, int nBorderColor, int nBorderWidth)
+void Panel::DrawBounds(int nBackColor, int nBorderColor, int nBorderWidth) const
 {
 	int x = 0, y = 0;
 	ClientToScreen(x, y);
@@ -396,7 +332,14 @@ void Panel::DrawBounds(int nBackColor, int nBorderColor, int nBorderWidth)
 	if (nBorderColor && nBorderWidth)
 		DrawBox(x, y, m_nWidth, m_nHeight, nBorderColor, (float)nBorderWidth);
 }
-void Label::DrawText(int nTextColor)
+void Panel::CopyTo(Panel& other) const
+{
+	Control::CopyTo(other);
+	other.m_nBorderColor = m_nBorderColor;
+	other.m_nBackColor = m_nBackColor;
+	other.m_nBorderWidth = m_nBorderWidth;
+}
+void Label::DrawText(int nTextColor) const
 {
 	if( !m_pFont || !nTextColor || m_strText.length() == 0 )
 		return;
@@ -432,6 +375,19 @@ void Label::AdjustSize()
 		return;
 	m_nWidth = m_pFont->GetTextWidth(m_strText.c_str()) + 2*m_nMarginX;
 	m_nHeight = m_pFont->GetRowHeight() + 2*m_nMarginY;
+}
+void Label::CopyTo(Label& other) const
+{
+	Panel::CopyTo(other);
+	other.m_strText = m_strText;
+	other.m_pFont = m_pFont;
+	other.m_nForeColor = m_nForeColor;
+	other.m_eAlignH = m_eAlignH;
+	other.m_eAlignV = m_eAlignV;
+	other.m_nMarginX = m_nMarginX;
+	other.m_nMarginY = m_nMarginY;
+	other.m_nOffsetX = m_nOffsetX;
+	other.m_nOffsetY = m_nOffsetY;
 }
 void Button::OnMousePos(int x, int y, BOOL click)
 {
@@ -470,6 +426,12 @@ void CheckBox::OnMousePos(int x, int y, BOOL click)
 		OnClick();
 	}
 }
+void CheckBox::CopyTo(CheckBox& other) const
+{
+	Button::CopyTo(other);
+	other.m_nCheckColor = m_nCheckColor;
+	other.m_bChecked = m_bChecked;
+}
 void Button::OnMouseExit()
 {
 	m_bClick = false;
@@ -477,4 +439,64 @@ void Button::OnMouseExit()
 void Button::OnMouseEnter()
 {
 	m_bWaitClick = true;
+}
+void Button::CopyTo(Button& other) const
+{
+	Label::CopyTo(other);
+	other.m_nClickColor = m_nClickColor;
+	other.m_nOverColor = m_nOverColor;
+	other.m_pOnClick = m_pOnClick;
+}
+void Slider::Draw() const
+{
+	int x = 0, y = 0;
+	ClientToScreen(x, y);
+	if (m_nBackColor)
+		FillBox(x, y, m_nWidth, m_nHeight, m_nBackColor);
+	if (m_nForeColor)
+		FillBox((float)x + m_nMarginX, (float)y + m_nMarginY, GetRatio()*(m_nWidth - 2*m_nMarginX), (float)m_nHeight - 2 * m_nMarginY, m_nForeColor);
+	if (m_nBorderColor && m_nBorderWidth)
+	{
+		DrawBox(x, y, m_nWidth, m_nHeight, m_nBorderColor, (float)m_nBorderWidth);
+		DrawBox(x + m_nMarginX, y + m_nMarginY, m_nWidth - 2 * m_nMarginX, m_nHeight - 2 * m_nMarginY, m_nBorderColor, (float)m_nBorderWidth);
+	}
+}
+void Slider::OnMousePos(int x, int y, BOOL click)
+{
+	if (!click)
+		return;
+	if (x > m_nWidth - m_nMarginX)
+		m_fValue = m_fMax;
+	else if (x < m_nMarginX)
+		m_fValue = m_fMin;
+	else
+		m_fValue = m_fMin + (m_fMax - m_fMin) * (x - m_nMarginX) / (m_nWidth - 2*m_nMarginX);
+	if (m_pOwner)
+		m_pOwner->Invalidate();
+}
+void Slider::CopyTo(Slider& other) const
+{
+	Panel::CopyTo(other);
+	other.m_nForeColor = m_nForeColor;
+	other.m_nMarginX = m_nMarginX;
+	other.m_nMarginY = m_nMarginY;
+	other.m_fMin = m_fMin;
+	other.m_fMax = m_fMax;
+	other.m_fValue = m_fValue;
+}
+void SliderBar::Invalidate()
+{
+	if (m_pchFormat && *m_pchFormat)
+	{
+		char buff[128];
+		m_value.m_strText = FORMAT(buff, m_pchFormat, m_slider.m_fValue);
+	}
+}
+void SliderBar::CopyTo(SliderBar &other) const
+{
+	Panel::CopyTo(other);
+	m_slider.CopyTo(other.m_slider);
+	m_name.CopyTo(other.m_name);
+	m_value.CopyTo(other.m_value);
+	other.m_pchFormat = m_pchFormat;
 }
