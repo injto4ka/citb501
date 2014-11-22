@@ -466,11 +466,11 @@ void DrawPar()
 	}
 	else
 	{
-		texParticle.Bind();
-
 		float x0, y0, z0;
 		ScreenToScene(200, 300, x0, y0, z0);
-
+		bool bShow = c_cbParticles.m_bChecked;
+		if( bShow )
+			texParticle.Bind();
 		for (int loop = 0; loop < MAX_PARTICLES; loop++)                   // Loop Through All The Particles
 		{
 			auto &par = particles[loop];
@@ -512,18 +512,21 @@ void DrawPar()
 			par.angle += par.rotate * dt;
 			par.age += dt;
 
-			glColor4f(par.r, par.g, par.b, par.alpha); // Material color
-			glPushMatrix();
-			glTranslatef(par.x, par.y, par.z);
-			glRotatef(par.angle, 0, 0, 1);
-			glBegin(GL_TRIANGLE_STRIP);
-				float s = par.size;
-				glTexCoord2d(1, 1); glVertex3f(s, s, 0); // Top Right
-				glTexCoord2d(0, 1); glVertex3f(-s, s, 0); // Top Left
-				glTexCoord2d(1, 0); glVertex3f(s, -s, 0); // Bottom Right
-				glTexCoord2d(0, 0); glVertex3f(-s, -s, 0); // Bottom Left
-			glEnd();
-			glPopMatrix();
+			if( bShow )
+			{
+				glColor4f(par.r, par.g, par.b, par.alpha); // Material color
+				glPushMatrix();
+				glTranslatef(par.x, par.y, par.z);
+				glRotatef(par.angle, 0, 0, 1);
+				glBegin(GL_TRIANGLE_STRIP);
+					float s = par.size;
+					glTexCoord2d(1, 1); glVertex3f(s, s, 0); // Top Right
+					glTexCoord2d(0, 1); glVertex3f(-s, s, 0); // Top Left
+					glTexCoord2d(1, 0); glVertex3f(s, -s, 0); // Bottom Right
+					glTexCoord2d(0, 0); glVertex3f(-s, -s, 0); // Bottom Left
+				glEnd();
+				glPopMatrix();
+			}
 		}
 	}
 }
