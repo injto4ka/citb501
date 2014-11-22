@@ -117,6 +117,7 @@ struct Particle
 }
 particles[MAX_PARTICLES] = {0};
 FileDialog fd;
+Directory dir;
 bool bEditor = false;
 
 #define LEVEL_WIDTH 20
@@ -716,6 +717,8 @@ void Init()
 	c_container.Add(&c_pGame);
 	c_container.Add(&c_pEditor);
 
+	c_container._Invalidate();
+
 	for(int y = 0, o = 0; y < LEVEL_HEIGHT; y++)
 	{
 		float fPosY = fLevelOffsetY + fLevelMinY + (fLevelMaxY - fLevelMinY) * y / (LEVEL_HEIGHT - 1);
@@ -728,7 +731,7 @@ void Init()
 		}
 	}
 	for(int i = 0; i < 30; i++)
-		bricks[Random(0, nBrickCount)].type = 1;
+		bricks[Random(nBrickCount)].type = 1;
 }
 
 void Redraw()
@@ -788,8 +791,6 @@ BOOL glCreate()
 
 	fd.m_hWnd = hWnd;
 
-	Reshape();
-
 	return TRUE;
 }
 
@@ -811,7 +812,7 @@ void InitWindow()
 	if(bCreateFullScreen)
 	{
 		DEVMODE dmScreenSettings;								// Device Mode
-		memset(&dmScreenSettings, 0, sizeof(dmScreenSettings));						// Make Sure Memory Is Cleared
+		ZeroMemory(&dmScreenSettings, sizeof(dmScreenSettings));						// Make Sure Memory Is Cleared
 		dmScreenSettings.dmSize				= sizeof (DEVMODE);	// Size Of The Devmode Structure
 		dmScreenSettings.dmPelsWidth		= nDisplayWidth;			// Select Screen Width
 		dmScreenSettings.dmPelsHeight		= nDisplayHeight;			// Select Screen Height
@@ -894,10 +895,7 @@ BOOL CreateNewWindow()
 				if(hRC)
 				{
 					if (wglMakeCurrent(hDC, hRC))
-					{
-						ShowWindow (hWnd, nShow);
 						return TRUE;
-					}
 					wglDeleteContext (hRC);
 					hRC = 0;	
 				}
@@ -963,8 +961,7 @@ LRESULT CALLBACK WinProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		}
 		case WM_PAINT:
 		{
-			Draw();
-			SwapBuffers(hDC);
+			// Redraw();
 			break;
 		}
 		case WM_MOVE:
@@ -1085,12 +1082,24 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLin
 {
 	InitRandGen();
 
+	Print("Main directory: %s\n", dir.GetCurrent());
+	dir.Set("", "cpp");
+	Print("Directory contents for: %s\n", dir.Get());
+	while(dir.Next())
+	{
+		auto attrib = dir.GetAttributes();
+		if( !attrib.directory )
+			Print("\t%s (%d KB)\n", dir.GetData().cFileName, attrib.size / 1024);
+	}
+
 	hInst = hInstance;
 	pchCmdLine = lpCmdLine;
 	nShow = nCmdShow;
 	
 	LPTSTR pchName = "Arkanoid";
 	HCURSOR hCursor = LoadCursor(NULL, IDC_ARROW);
+
+	SetThreadName("Render");
 
 	if (!hPrevInstance)
 	{
@@ -1128,13 +1137,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLin
 			}
 			else
 			{
+				ShowWindow(hWnd, nShow);
 				for(;;)
 				{
 					MSG msg; // Message Info
 					if(PeekMessage(&msg, hWnd, 0, 0, PM_REMOVE) != 0)
 					{
 						if (msg.message == WM_QUIT)
+						{
+							evInput.Signal();
 							break;
+						}
 						TranslateMessage(&msg);
 						DispatchMessage(&msg);
 						continue;

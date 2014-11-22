@@ -85,76 +85,23 @@ public:
 	operator bool() const { return IsLoaded(); }
 };
 
-class FileDialog
-{
-protected:
-	void Fill(OPENFILENAME &ofn, DWORD flags = 0);
-	void Parse(const OPENFILENAME &ofn);
-	std::string m_strFilter;
-	bool bFilterModified;
-	struct FileFilter
-	{
-		std::string m_strExt, m_strInfo;
-		FileFilter(const char *ext = NULL, const char *info = NULL)
-		{
-			if(!ext)
-			{
-				m_strExt = "*";
-				m_strInfo = "All Files";
-			}
-			else
-			{
-				m_strExt = ext;
-				m_strInfo = info ? info : "";
-			}
-		}
-	};
-	std::list<FileFilter> m_lFilters;
-	const char *GetFilterStr();
-public:
-	char m_pchPath[MAX_PATH], m_pchShortPath[MAX_PATH];
-	std::string m_strDefExt, m_strFileDir, m_strFileName, m_strFileExt, m_strNameOnly;
-	char m_cDrive;
-	
-	DWORD m_uFilterIndex;
-	HWND m_hWnd;
 
-	FileDialog():m_hWnd(NULL), m_cDrive(0), m_uFilterIndex(0), bFilterModified(false)
-	{
-		m_strFilter.reserve(MAX_PATH);
-		m_pchPath[0] = 0;
-		m_pchShortPath[0] = 0;
-	}
-
-	void AddFilter(const char *ext = NULL, const char *info = NULL)
-	{
-		bFilterModified = true;
-		m_lFilters.push_back(FileFilter(ext, info));
-	}
-	void ClearFilters()
-	{
-		bFilterModified = true;
-		m_lFilters.clear();
-	}
-	const char *Open(const char *pchDirPath = NULL);
-	const char *Save(const char *pchFilePath = NULL);
-};
 
 class Control
 {
 protected:
 	bool m_bOver;
-	virtual void Draw(){}
+	virtual void Draw() const {}
 	virtual void AdjustSize(){}
 	virtual void OnMousePos(int x, int y, BOOL click){}
 	virtual void OnMouseExit(){}
 	virtual void OnMouseEnter(){}
+	Control *m_pOwner;
+	std::vector<Control *> m_vChilds;
 public:
 	int m_nBottom, m_nLeft, m_nWidth, m_nHeight, m_nAnchorRight, m_nAnchorTop;
 	bool m_bVisible, m_bDisabled, m_bAutoSize;
 	int m_nZ;
-	Control *m_pOwner;
-	std::list<Control *> m_lChilds;
 	Control():
 		m_nZ(0), m_nBottom(0), m_nLeft(0), m_nWidth(-1), m_nHeight(-1),
 		m_nAnchorRight(-1), m_nAnchorTop(-1),
@@ -181,72 +128,31 @@ public:
 	void _Draw();
 	bool _OnMousePos(int x, int y, BOOL click);
 	void _AdjustSize(int nWinWidth, int nWinHeight);
+	void _Invalidate();
 	bool operator < (const Control& other) const { return m_nZ < other.m_nZ; }
-	void CopyTo(Control& other) const
-	{
-		other.m_nBottom = m_nBottom;
-		other.m_nLeft = m_nLeft;
-		other.m_nWidth = m_nWidth;
-		other.m_nHeight = m_nHeight;
-		other.m_bVisible = m_bVisible;
-		other.m_bDisabled = m_bDisabled;
-		other.m_bAutoSize = m_bAutoSize;
-		other.m_nZ = m_nZ;
-	}
+	void CopyTo(Control& other) const;
 	virtual void Invalidate(){}
 };
 
 class Panel: public Control
 {
 protected:
-	virtual void Draw()
+	virtual void Draw() const 
 	{
 		DrawBounds(m_nBackColor, m_nBorderColor, m_nBorderWidth);
 	}
-	void DrawBounds(int nBackColor, int nBorderColor, int nBorderWidth);
+	void DrawBounds(int nBackColor, int nBorderColor, int nBorderWidth) const;
 public:
 	int m_nBorderColor, m_nBackColor, m_nBorderWidth;
 	Panel():m_nBorderColor(0), m_nBackColor(0), m_nBorderWidth(1){}
-	void CopyTo(Panel& other) const
-	{
-		Control::CopyTo(other);
-		other.m_nBorderColor = m_nBorderColor;
-		other.m_nBackColor = m_nBackColor;
-		other.m_nBorderWidth = m_nBorderWidth;
-	}
+	void CopyTo(Panel& other) const;
 };
 
 class Slider : public Panel
 {
 protected:
-	virtual void Draw()
-	{
-		int x = 0, y = 0;
-		ClientToScreen(x, y);
-		if (m_nBackColor)
-			FillBox(x, y, m_nWidth, m_nHeight, m_nBackColor);
-		if (m_nForeColor)
-			FillBox((float)x + m_nMarginX, (float)y + m_nMarginY, GetRatio()*(m_nWidth - 2*m_nMarginX), (float)m_nHeight - 2 * m_nMarginY, m_nForeColor);
-		if (m_nBorderColor && m_nBorderWidth)
-		{
-			DrawBox(x, y, m_nWidth, m_nHeight, m_nBorderColor, (float)m_nBorderWidth);
-			DrawBox(x + m_nMarginX, y + m_nMarginY, m_nWidth - 2 * m_nMarginX, m_nHeight - 2 * m_nMarginY, m_nBorderColor, (float)m_nBorderWidth);
-		}
-	}
-	virtual void OnMousePos(int x, int y, BOOL click)
-	{
-		if (click)
-		{
-			if (x > m_nWidth - m_nMarginX)
-				m_fValue = m_fMax;
-			else if (x < m_nMarginX)
-				m_fValue = m_fMin;
-			else
-				m_fValue = m_fMin + (m_fMax - m_fMin) * (x - m_nMarginX) / (m_nWidth - 2*m_nMarginX);
-			if (m_pOwner)
-				m_pOwner->Invalidate();
-		}
-	}
+	virtual void Draw() const;
+	virtual void OnMousePos(int x, int y, BOOL click);
 public:
 	int m_nForeColor, m_nMarginX, m_nMarginY;
 	float m_fMin, m_fMax, m_fValue;
@@ -256,17 +162,18 @@ public:
 	{
 		return Clamp((m_fValue - m_fMin) / (m_fMax - m_fMin), 0.0f, 1.0f);
 	}
+	void CopyTo(Slider& other) const;
 };
 
 class Label: public Panel
 {
 protected:
-	virtual void Draw()
+	virtual void Draw() const 
 	{
 		DrawBounds(m_nBackColor, m_nBorderColor, m_nBorderWidth);
 		DrawText(m_nForeColor);
 	}
-	void DrawText(int nTextColor);
+	void DrawText(int nTextColor) const;
 	virtual void AdjustSize();
 public:
 	Font *m_pFont;
@@ -278,19 +185,7 @@ public:
 		m_nMarginX(0), m_nMarginY(0),
 		m_nOffsetX(0), m_nOffsetY(0)
 	{}
-	void CopyTo(Label& other) const
-	{
-		Panel::CopyTo(other);
-		other.m_strText = m_strText;
-		other.m_pFont = m_pFont;
-		other.m_nForeColor = m_nForeColor;
-		other.m_eAlignH = m_eAlignH;
-		other.m_eAlignV = m_eAlignV;
-		other.m_nMarginX = m_nMarginX;
-		other.m_nMarginY = m_nMarginY;
-		other.m_nOffsetX = m_nOffsetX;
-		other.m_nOffsetY = m_nOffsetY;
-	}
+	void CopyTo(Label& other) const;
 };
 
 class SliderBar : public Panel
@@ -299,28 +194,14 @@ public:
 	const char *m_pchFormat;
 	Slider m_slider;
 	Label m_name, m_value;
-	SliderBar() :m_pchFormat("%d")
+	SliderBar():m_pchFormat("%d")
 	{
 		Add(&m_slider);
 		Add(&m_name);
 		Add(&m_value);
 	}
-	virtual void Invalidate()
-	{
-		if (m_pchFormat && *m_pchFormat)
-		{
-			char buff[128];
-			m_value.m_strText = FORMAT(buff, m_pchFormat, m_slider.m_fValue);
-		}
-	}
-	void CopyTo(SliderBar &other) const
-	{
-		Panel::CopyTo(other);
-		m_slider.CopyTo(other.m_slider);
-		m_name.CopyTo(other.m_name);
-		m_value.CopyTo(other.m_value);
-		other.m_pchFormat = m_pchFormat;
-	}
+	void CopyTo(SliderBar &other) const;
+	virtual void Invalidate();
 };
 
 class Button: public Label
@@ -331,7 +212,7 @@ protected:
 	virtual void OnMouseExit();
 	virtual void OnMouseEnter();
 	virtual void OnClick(){ if(m_pOnClick) m_pOnClick();}
-	virtual void Draw()
+	virtual void Draw() const 
 	{
 		DrawBounds((m_bClick && m_nClickColor) ? m_nClickColor : ((m_bOver && m_nOverColor) ? m_nOverColor : m_nBackColor), m_nBorderColor, m_nBorderWidth);
 		DrawText(m_nForeColor);
@@ -339,22 +220,15 @@ protected:
 public:
 	int m_nClickColor, m_nOverColor;
 	void (*m_pOnClick)();
-	Button():m_nOverColor(0), m_nClickColor(0), m_bClick(false), m_bWaitClick(false), m_pOnClick(NULL)
-	{}
-	void CopyTo(Button& other) const
-	{
-		Label::CopyTo(other);
-		other.m_nClickColor = m_nClickColor;
-		other.m_nOverColor = m_nOverColor;
-		other.m_pOnClick = m_pOnClick;
-	}
+	Button():m_nOverColor(0), m_nClickColor(0), m_bClick(false), m_bWaitClick(false), m_pOnClick(NULL){}
+	void CopyTo(Button& other) const;
 };
 
 class CheckBox : public Button
 {
 protected:
 	virtual void OnMousePos(int x, int y, BOOL click);
-	virtual void Draw()
+	virtual void Draw() const 
 	{
 		DrawBounds(
 			(m_bClick && m_nClickColor) ?
@@ -370,14 +244,8 @@ protected:
 public:
 	bool m_bChecked;
 	int m_nCheckColor;
-	CheckBox() :m_nCheckColor(0), m_bChecked(false)
-	{}
-	void CopyTo(CheckBox& other) const
-	{
-		Button::CopyTo(other);
-		other.m_nCheckColor = m_nCheckColor;
-		other.m_bChecked = m_bChecked;
-	}
+	CheckBox() :m_nCheckColor(0), m_bChecked(false) {}
+	void CopyTo(CheckBox& other) const;
 };
 
 

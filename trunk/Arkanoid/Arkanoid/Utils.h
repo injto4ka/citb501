@@ -3,6 +3,8 @@
 
 #include <windows.h>			// Windows API Definitions
 #include <stdio.h>
+#include <list>
+#include <string>
 
 #pragma warning(disable:4996)
 
@@ -190,5 +192,112 @@ A Clamp(A value, A min, A max)
 		return max;
 	return value;
 }
+
+class FileDialog
+{
+protected:
+	void Fill(OPENFILENAME &ofn, DWORD flags = 0);
+	void Parse(const OPENFILENAME &ofn);
+	std::string m_strFilter;
+	bool bFilterModified;
+	struct FileFilter
+	{
+		std::string m_strExt, m_strInfo;
+		FileFilter(const char *ext = NULL, const char *info = NULL)
+		{
+			if(!ext)
+			{
+				m_strExt = "*";
+				m_strInfo = "All Files";
+			}
+			else
+			{
+				m_strExt = ext;
+				m_strInfo = info ? info : "";
+			}
+		}
+	};
+	std::list<FileFilter> m_lFilters;
+	const char *GetFilterStr();
+public:
+	char m_pchPath[MAX_PATH + 1], m_pchShortPath[MAX_PATH + 1];
+	std::string m_strDefExt, m_strFileDir, m_strFileName, m_strFileExt, m_strNameOnly;
+	char m_cDrive;
+	
+	DWORD m_uFilterIndex;
+	HWND m_hWnd;
+
+	FileDialog():m_hWnd(NULL), m_cDrive(0), m_uFilterIndex(0), bFilterModified(false)
+	{
+		m_strFilter.reserve(MAX_PATH);
+		m_pchPath[0] = 0;
+		m_pchShortPath[0] = 0;
+	}
+
+	void AddFilter(const char *ext = NULL, const char *info = NULL)
+	{
+		bFilterModified = true;
+		m_lFilters.push_back(FileFilter(ext, info));
+	}
+	void ClearFilters()
+	{
+		bFilterModified = true;
+		m_lFilters.clear();
+	}
+	const char *Open(const char *pchDirPath = NULL);
+	const char *Save(const char *pchFilePath = NULL);
+};
+
+struct FileAttributes
+{
+	__int64 size;
+	bool
+		archive, compressed, directory,
+		encrypted, hidden, normal,
+		indexed, remote, readonly,
+		link, sparse, system, temp;
+	FileAttributes(const WIN32_FIND_DATA &data)
+	{
+		int flags = data.dwFileAttributes;
+
+		archive = !!(flags & FILE_ATTRIBUTE_ARCHIVE);
+		compressed = !!(flags & FILE_ATTRIBUTE_COMPRESSED);
+		directory = !!(flags & FILE_ATTRIBUTE_DIRECTORY);
+		encrypted = !!(flags & FILE_ATTRIBUTE_ENCRYPTED);
+		hidden = !!(flags & FILE_ATTRIBUTE_HIDDEN);
+		normal = !!(flags & FILE_ATTRIBUTE_NORMAL);
+		indexed = !(flags & FILE_ATTRIBUTE_NOT_CONTENT_INDEXED);
+		remote = !!(flags & FILE_ATTRIBUTE_OFFLINE);
+		readonly = !!(flags & FILE_ATTRIBUTE_READONLY);
+		link = !!(flags & FILE_ATTRIBUTE_REPARSE_POINT);
+		sparse = !!(flags & FILE_ATTRIBUTE_SPARSE_FILE);
+		system = !!(flags & FILE_ATTRIBUTE_SYSTEM);
+		temp = !!(flags & FILE_ATTRIBUTE_TEMPORARY);
+
+		size = data.nFileSizeHigh * ((__int64)MAXDWORD+1) + data.nFileSizeLow;
+	}
+};
+
+class Directory
+{
+	HANDLE h;
+	char m_pchName[MAX_PATH + 1], m_pchBuff[MAX_PATH + 1];
+	void Reset();
+	WIN32_FIND_DATA m_data;
+public:
+	FileAttributes GetAttributes() const { return m_data; }
+	const WIN32_FIND_DATA& GetData() const { return m_data; }
+	Directory():h(NULL)
+	{
+		ZeroMemory(m_pchName, sizeof(m_pchName));
+		ZeroMemory(m_pchBuff, sizeof(m_pchBuff));
+	}
+	~Directory(){ Reset(); }
+	void Set(const char *path = NULL, const char *ext = NULL);
+	const char *Get() const { return m_pchName; }
+	BOOL Next();
+	const char *GetCurrent();
+	static BOOL SetCurrent(const char *current);
+};
 
 #endif __UTILS_H_
