@@ -163,6 +163,7 @@ public:
 		return Clamp((m_fValue - m_fMin) / (m_fMax - m_fMin), 0.0f, 1.0f);
 	}
 	void CopyTo(Slider& other) const;
+	void(*OnValueChanged)();
 };
 
 class Label: public Panel
@@ -202,6 +203,11 @@ public:
 	}
 	void CopyTo(SliderBar &other) const;
 	virtual void Invalidate();
+	void SetValue(float fValue)
+	{
+		m_slider.m_fValue = fValue;
+		Invalidate();
+	}
 };
 
 class Button: public Label
