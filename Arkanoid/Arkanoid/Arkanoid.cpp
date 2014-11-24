@@ -49,7 +49,9 @@ Texture texBall, texParticle, texWood;
 GLfloat
 	pLightAmbient[]= { 0.5f, 0.5f, 0.5f, 1.0f }, // Ambient Light Values
 	pLightDiffuse[]= { 1.0f, 1.0f, 1.0f, 1.0f }, // Diffuse Light Values
-	pLightPosition[]= { 0.0f, 1.0f, 1.0f, 0.0f }, // Light Position
+	pLightGlowDiffuse[]= { 0.0f, 1.0f, 0.0f, 1.0f }, // Effect Light Values
+	pLightGlowAttenuate[] = {1.0f, 1.0f, 1.0f},
+	pLightPosition[]= { 0.0f, 0.0f, 0.0f, 1.0f }, // Light Position
 	pFogColor[]= {0.0f, 0.0f, 0.0f, 1.0f}; // Fog Color
 float fFogStart = 0.0f;
 float fFogEnd = 10.0f;
@@ -83,10 +85,8 @@ CheckBox c_cbFullscreen, c_cbGeometry, c_cbParticles;
 SliderBar c_sFriction, c_sSlowdown, c_sBrick;
 Control c_container;
 std::list<float> lfSelIntervals;
-const int nMaxFrames = 300;
-float
-	fLastFrameTime = 0, fSelInterval = 0,
-	fLastUpdateTime = 0, fUpdateInterval = 0;
+const float fTimeSumMax = 3;
+float fLastFrameTime = 0, fSelInterval = 0;
 bool bGeometry = false;
 #define MAX_PARTICLES 1200
 float
@@ -147,15 +147,18 @@ struct Brick
 	}
 } bricks[ nBrickCount ] = {};
 const float
-	fLevelMinX = -1.7f,
-	fLevelMaxX = 1.7f,
+	fLevelWidth = 3.4f,
+	fBrickMargin = 0.01f,
+	fBrickSize = fLevelWidth / (LEVEL_WIDTH - 1) - fBrickMargin,
+	fLevelHeight = (LEVEL_HEIGHT - 1) * (fBrickSize + fBrickMargin),
 	fLevelOffsetX = 0,
-	fLevelOffsetY = -0.5f,
-	fLevelMinY = 0.0f,
-	fLevelMaxY = 1.7f,
-	fBrickBallR = 0.07f,
-	fBrickCubeSide = 0.14f,
-	fMaxSelDist2 = 0.1f;
+	fLevelOffsetY = 0.5f,
+	fLevelMinX = fLevelOffsetX - fLevelWidth / 2,
+	fLevelMaxX = fLevelOffsetX + fLevelWidth / 2,
+	fLevelMinY = fLevelOffsetY - fLevelHeight / 2,
+	fLevelMaxY = fLevelOffsetY + fLevelHeight / 2,
+	fMaxSelDist = fBrickSize,
+	fMaxSelDist2 = fMaxSelDist * fMaxSelDist;
 float fJumpEffectZ = 0;
 int nSelectedBrick = -1;
 
@@ -212,6 +215,7 @@ void LoadLevel()
 	{
 		bricks[i].type = types[i];
 	}
+	nSelectedBrick = -1;
 }
 
 void SaveLevel()
@@ -251,10 +255,6 @@ BOOL ReadImage(Image &image, const char *pchFilename)
 
 void Update()
 {
-	float time = timer.Time();
-	fUpdateInterval = time - fLastUpdateTime;
-	fLastUpdateTime = time;
-
 	while( dInput.size() > 0 )
 	{
 		Input input;
@@ -354,15 +354,19 @@ void Draw2D()
 	font.Print(buff, (float)nWinWidth/2, (float)nWinHeight, 0xffffffff, ALIGN_CENTER, ALIGN_TOP);
 
 	lfSelIntervals.push_back(fSelInterval);
-	while (lfSelIntervals.size() > nMaxFrames)
-		lfSelIntervals.pop_front();
 	float fTimeSum = 0;
 	int nFrames = 0;
-	for (auto it = lfSelIntervals.begin(); it != lfSelIntervals.end(); it++)
+	auto it = lfSelIntervals.end(), first = it;
+	for(;;)
 	{
+		it--;
 		fTimeSum += *it;
 		nFrames++;
+		if( it == lfSelIntervals.begin() || fTimeSum > fTimeSumMax )
+			break;
 	}
+	while( it != lfSelIntervals.begin() )
+		lfSelIntervals.pop_front();
 	if (nFrames)
 	{
 		FORMAT(buff, "%.1f", nFrames / fTimeSum);
@@ -404,6 +408,9 @@ void Draw3D()
 		ScreenToScene(nWinX, nWinY, fSelX, fSelY, fSelZ);
 	}
 
+	GLfloat pGlowPos[] = {fSelX, fSelY, fSelZ, 1.0f};
+	glLightfv(GL_LIGHT2, GL_POSITION, pGlowPos);
+
 	float time = timer.Time();
 	float dt = time - fLastDrawTime;
 	fLastDrawTime = time;
@@ -411,12 +418,12 @@ void Draw3D()
 	if( !dlBrickBall )
 	{
 		CompileDisplayList cds(dlBrickBall);
-		DrawSphere(fBrickBallR);
+		DrawSphere(fBrickSize / 2);
 	}
 	if( !dlBrickCube )
 	{
 		CompileDisplayList cds(dlBrickCube);
-		DrawCube(fBrickCubeSide);
+		DrawCube(fBrickSize);
 	}
 
 	if( bEditor )
@@ -445,6 +452,11 @@ void Draw3D()
 					c_sBrick.SetValue((float)bricks[nSelectedBrick].type);
 			}
 		}
+		glPushAttrib(GL_ENABLE_BIT);
+		if( nSelectedBrick == -1 )
+			glDisable(GL_FOG);
+		else
+			glEnable(GL_FOG);
 		for(int i = 0; i < nBrickCount; i++)
 		{
 			const Brick &brick = bricks[i];
@@ -464,6 +476,7 @@ void Draw3D()
 			glPopAttrib();
 			glPopMatrix();
 		}
+		glPopAttrib();
 		fJumpEffectZ += PI * dt;
 	}
 	else
@@ -611,7 +624,6 @@ void Draw()
 	}
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_LIGHTING);
-	glDisable(GL_COLOR_MATERIAL);
 	glEnable(GL_FOG);
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity ();
@@ -627,7 +639,6 @@ void Draw()
 	// particles ---------------------------------------
 	glPushAttrib(GL_COLOR_BUFFER_BIT | GL_HINT_BIT | GL_ENABLE_BIT);
 	glDisable(GL_LIGHTING);
-	glDisable(GL_COLOR_MATERIAL);
 	glDisable(GL_DEPTH_TEST);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 	glEnable(GL_TEXTURE_2D); 
@@ -668,16 +679,15 @@ void Init()
 	ReadImage(imgParticle, "art/star.tga");
 	ReadImage(imgWood, "art/crate.tga");
 
-	texBall.minFilter = GL_LINEAR_MIPMAP_NEAREST;
+	texBall.minFilter = GL_LINEAR_MIPMAP_LINEAR;
 	texBall.magFilter = GL_LINEAR;
 	texBall.mipmapped = TRUE;
 
-	texWood.minFilter = GL_LINEAR_MIPMAP_NEAREST;
+	texWood.minFilter = GL_LINEAR_MIPMAP_LINEAR;
 	texWood.magFilter = GL_LINEAR;
 	texWood.mipmapped = TRUE;
 
 	fd.m_strFileDir = "Data";
-	fd.AddFilter("lvl", "Level files");
 	fd.AddFilter("txt", "Text files");
 	fd.AddFilter("tga", "Image files");
 
@@ -813,10 +823,10 @@ void Init()
 
 	for(int y = 0, o = 0; y < LEVEL_HEIGHT; y++)
 	{
-		float fPosY = fLevelOffsetY + fLevelMinY + (fLevelMaxY - fLevelMinY) * y / (LEVEL_HEIGHT - 1);
+		float fPosY = fLevelMinY + (fLevelMaxY - fLevelMinY) * y / (LEVEL_HEIGHT - 1);
 		for(int x = 0; x < LEVEL_WIDTH; x++, o++)
 		{
-			float fPosX = fLevelOffsetX + fLevelMinX + (fLevelMaxX - fLevelMinX) * x / (LEVEL_WIDTH - 1);
+			float fPosX = fLevelMinX + (fLevelMaxX - fLevelMinX) * x / (LEVEL_WIDTH - 1);
 			Brick &brick = bricks[o];
 			brick.x = fPosX;
 			brick.y = fPosY;
@@ -852,7 +862,10 @@ BOOL glCreate()
 	glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 
 	// Create light 1
-	CreateLight(GL_LIGHT1, pLightAmbient, pLightDiffuse, pLightPosition);
+	CreateLight(GL_LIGHT1, pLightPosition, pLightAmbient, pLightDiffuse);
+	CreateLight(GL_LIGHT2, NULL, NULL, pLightGlowDiffuse, NULL, pLightGlowAttenuate );
+	glEnable(GL_LIGHTING);
+	glDisable(GL_COLOR_MATERIAL);
 
 	CreateFog(fFogStart, fFogEnd, pFogColor, fFogDensity, uFogMode, uFogQuality);
 
@@ -1278,7 +1291,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLin
 		}
 	}
 
-	UnregisterClass (pchName, hInstance);
+	UnregisterClass(pchName, hInstance);
 
 	return 0;
 }
