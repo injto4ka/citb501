@@ -60,7 +60,10 @@ struct TGAHeader
 void SetMemAlign(int nMemWidth, BOOL bPack);
 void CreateLight(GLenum id, GLfloat *ambient, GLfloat *diffuse, GLfloat *position);
 void CreateFog(GLfloat start, GLfloat end, GLfloat *color, GLfloat density, GLuint func, GLenum quality);
+
 GLvoid DrawSphere(float R, int nDivs = 6);
+void DrawCube(float side);
+
 GLvoid DrawFrame(float x, float y, float z, float r = 1.0f, float w = 1);
 GLvoid DrawLine(float x1, float y1, float z1, 
 				float x2, float y2, float z2,
