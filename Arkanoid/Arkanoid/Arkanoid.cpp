@@ -474,24 +474,29 @@ void Draw3D()
 			glDisable(GL_FOG);
 		else
 			glEnable(GL_FOG);
-		for(int i = 0; i < nBrickCount; i++)
+		for(int k = 0; k < MAX_TYPE; k++)
 		{
-			const Brick &brick = bricks[i];
-			bool bSelected = i == nSelectedBrick;
-			float z = 0;
-			glPushAttrib(GL_ENABLE_BIT);
-			if( bSelected )
+			for(int i = 0; i < nBrickCount; i++)
 			{
-				z = 0.1f + 0.1f*sinf(fJumpEffectZ);
-				glDisable(GL_FOG);
-			}
-			glPushMatrix();
-			glTranslatef(brick.x, brick.y, z);
+				const Brick &brick = bricks[i];
+				if( brick.type != k )
+					continue;
+				bool bSelected = i == nSelectedBrick;
+				float z = 0;
+				glPushAttrib(GL_ENABLE_BIT);
+				if( bSelected )
+				{
+					z = 0.1f + 0.1f*sinf(fJumpEffectZ);
+					glDisable(GL_FOG);
+				}
+				glPushMatrix();
+				glTranslatef(brick.x, brick.y, z);
 
-			brick.Draw();
+				brick.Draw();
 			
-			glPopAttrib();
-			glPopMatrix();
+				glPopAttrib();
+				glPopMatrix();
+			}
 		}
 		glPopAttrib();
 		fJumpEffectZ += PI * dt;
@@ -742,7 +747,7 @@ void Init()
 	c_lPath.m_eAlignH = ALIGN_LEFT;
 	c_lPath.m_eAlignV = ALIGN_CENTER;
 	c_lPath.m_nBorderColor = 0xff000000;
-	c_lPath.m_nForeColor = 0xff0000ff;
+	c_lPath.m_nForeColor = 0xffcc0000;
 	c_lPath.CopyTo(c_bExit);
 
 	c_bExit.SetBounds(50, 10, 120, 60);
