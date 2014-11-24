@@ -118,6 +118,7 @@ struct Particle
 particles[MAX_PARTICLES] = {0};
 FileDialog fd;
 Directory dir;
+const char *pchCurrentDir = ".";
 bool bEditor = false;
 
 #define LEVEL_WIDTH 20
@@ -161,6 +162,7 @@ const float
 	fMaxSelDist2 = fMaxSelDist * fMaxSelDist;
 float fJumpEffectZ = 0;
 int nSelectedBrick = -1;
+std::string strCurrentLevel;
 
 //=========================================================================================================
 
@@ -191,14 +193,18 @@ void SetBrickType()
 		bricks[nSelectedBrick].type = Round(c_sBrick.m_slider.m_fValue);
 }
 
-void LoadLevel()
+bool LoadLevel(const char *pchPath)
 {
-	const char *pchPath = fd.Open();
 	if (!pchPath)
-		return;
+		return false;
+	strCurrentLevel = pchPath;
 	c_lPath.m_strText = pchPath;
 	File f;
-	f.Open(pchPath, "rt");
+	if( !f.Open(pchPath, "rt") )
+	{
+		Print("Cannot open %s for reading!", pchPath);
+		return false;
+	}
 	int index = 0;
 	int types[nBrickCount] = {};
 	for (int i = 0; i < nBrickCount; i++)
@@ -206,8 +212,8 @@ void LoadLevel()
 		int type = -1;
 		if (fscanf(f, "%d,", &type) <= 0 || type < 0 || type >= MAX_TYPE)
 		{
-			Print("Corrupted file!");
-			return;
+			Print("Corrupted level file: %s", pchPath);
+			return false;
 		}
 		types[i] = type;
 	}
@@ -216,22 +222,33 @@ void LoadLevel()
 		bricks[i].type = types[i];
 	}
 	nSelectedBrick = -1;
+	return true;
+}
+
+void LoadLevel()
+{
+	LoadLevel(fd.Open());
+}
+
+bool SaveLevel(const char *pchPath)
+{
+	if (!pchPath)
+		return false;
+	c_lPath.m_strText = pchPath;
+	File f;
+	if( !f.Open(pchPath, "wt") )
+	{
+		Print("Cannot open %s for writing!", pchPath);
+		return false;
+	}
+	for (int i = 0; i < nBrickCount; i++)
+		fprintf(f, "%d,", bricks[i].type);
+	return true;
 }
 
 void SaveLevel()
 {
-	const char *pchPath = fd.Save();
-	if (!pchPath)
-		return;
-	c_lPath.m_strText = pchPath;
-	File f;
-	f.Open(pchPath, "wt");
-	char buff[128];
-	for (int i = 0; i < nBrickCount; i++)
-	{
-		int nCount = _snprintf(buff, sizeof(buff) - 1, "%d,", bricks[i].type);
-		fwrite(buff, nCount, 1, f);
-	}
+	SaveLevel(fd.Save());
 }
 
 void ToggleGeometry()
@@ -672,6 +689,30 @@ void Randomize()
 		bricks[i].type = Random(MAX_TYPE);
 }
 
+bool LoadNextLevel()
+{
+	bool bReached = strCurrentLevel == "";
+	for(;;)
+	{
+		dir.Reset();
+		while(dir.Next())
+		{
+			auto attrib = dir.GetAttributes();
+			if( !attrib.directory && attrib.size )
+			{
+				char pchPath[MAX_PATH];
+				FORMAT(pchPath, "%s\\Data\\%s", pchCurrentDir, dir.GetData().cFileName);
+				if( bReached && LoadLevel(pchPath) )
+					return true;
+				bReached = strCurrentLevel == pchPath;
+			}
+		}
+		if( bReached )
+			return false;
+		bReached = true;
+	}
+}
+
 void Init()
 {
 	ReadImage(imgBall2D, "art/ball2d.tga");
@@ -695,7 +736,6 @@ void Init()
 
 	c_lPath.SetBounds(130, 10, 390, 20);
 	c_lPath.m_nAnchorRight = 10;
-	c_lPath.m_strText = "";
 	c_lPath.m_pFont = &smallFont;
 	c_lPath.m_nMarginX = 5;
 	c_lPath.m_nOffsetY = 4;
@@ -832,6 +872,18 @@ void Init()
 			brick.y = fPosY;
 		}
 	}
+	pchCurrentDir = dir.GetCurrent();
+	Print("Main directory: %s\n", pchCurrentDir);
+	dir.Set("Data", "txt");
+	Print("Directory contents for: %s\n", dir.Get());
+	while(dir.Next())
+	{
+		auto attrib = dir.GetAttributes();
+		if( !attrib.directory )
+			Print("\t%s (%d B)\n", dir.GetData().cFileName, attrib.size);
+	}
+
+	LoadNextLevel();
 	// Randomize();
 }
 
@@ -1190,16 +1242,6 @@ static DWORD WINAPI UpdateProc(void * param)
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLine, int nCmdShow)
 {
 	InitRandGen();
-
-	Print("Main directory: %s\n", dir.GetCurrent());
-	dir.Set("", "cpp");
-	Print("Directory contents for: %s\n", dir.Get());
-	while(dir.Next())
-	{
-		auto attrib = dir.GetAttributes();
-		if( !attrib.directory )
-			Print("\t%s (%d KB)\n", dir.GetData().cFileName, attrib.size / 1024);
-	}
 
 	hInst = hInstance;
 	pchCmdLine = lpCmdLine;
