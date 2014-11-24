@@ -144,8 +144,7 @@ void Font::Print(const char *pchText, float x, float y, int nColor, int eAlignH,
 	if(!nLength)
 		return;
 
-	glPushAttrib(GL_ENABLE_BIT); // Push The Enable Bits
-	glPushAttrib(GL_CURRENT_BIT); // Push The Current Bits
+	glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT);
 	glMatrixMode(GL_MODELVIEW); // Select The Modelview Matrix
 	glPushMatrix(); // Store The Modelview Matrix
 
@@ -189,8 +188,7 @@ void Font::Print(const char *pchText, float x, float y, int nColor, int eAlignH,
 	glMatrixMode(GL_MODELVIEW); // Select The Modelview Matrix
 	glPopMatrix(); // Restore The Old Modelview Matrix
 	
-	glPopAttrib(); // Pops The Current Bits
-	glPopAttrib(); // Pops The Enable Bits
+	glPopAttrib();
 }
 
 void Control::Add(Control *child)
