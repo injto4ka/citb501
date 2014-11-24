@@ -144,7 +144,8 @@ void Font::Print(const char *pchText, float x, float y, int nColor, int eAlignH,
 	if(!nLength)
 		return;
 
-	glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT);
+	glPushAttrib(GL_ENABLE_BIT); // Push The Enable Bits
+	glPushAttrib(GL_CURRENT_BIT); // Push The Current Bits
 	glMatrixMode(GL_MODELVIEW); // Select The Modelview Matrix
 	glPushMatrix(); // Store The Modelview Matrix
 
@@ -188,7 +189,8 @@ void Font::Print(const char *pchText, float x, float y, int nColor, int eAlignH,
 	glMatrixMode(GL_MODELVIEW); // Select The Modelview Matrix
 	glPopMatrix(); // Restore The Old Modelview Matrix
 	
-	glPopAttrib();
+	glPopAttrib(); // Pops The Current Bits
+	glPopAttrib(); // Pops The Enable Bits
 }
 
 void Control::Add(Control *child)
@@ -463,21 +465,14 @@ void Slider::OnMousePos(int x, int y, BOOL click)
 {
 	if (!click)
 		return;
-	float fNewValue;
 	if (x > m_nWidth - m_nMarginX)
-		fNewValue = m_fMax;
+		m_fValue = m_fMax;
 	else if (x < m_nMarginX)
-		fNewValue = m_fMin;
+		m_fValue = m_fMin;
 	else
-		fNewValue = m_fMin + (m_fMax - m_fMin) * (x - m_nMarginX) / (m_nWidth - 2*m_nMarginX);
-	if (fNewValue != m_fValue)
-	{
-		m_fValue = fNewValue;
-		if( OnValueChanged )
-			OnValueChanged();
-		if (m_pOwner)
-			m_pOwner->Invalidate();
-	}
+		m_fValue = m_fMin + (m_fMax - m_fMin) * (x - m_nMarginX) / (m_nWidth - 2*m_nMarginX);
+	if (m_pOwner)
+		m_pOwner->Invalidate();
 }
 void Slider::CopyTo(Slider& other) const
 {

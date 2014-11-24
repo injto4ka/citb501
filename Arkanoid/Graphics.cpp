@@ -29,22 +29,11 @@ void SetMemAlign(int nMemWidth, BOOL bPack)
 	}
 }
 
-void CreateLight(GLenum id, GLfloat *position, GLfloat *ambient, GLfloat *diffuse, GLfloat *specular, GLfloat *attenuate)
+void CreateLight(GLenum id, GLfloat *ambient, GLfloat *diffuse, GLfloat *position)
 {
-	if( ambient )
-		glLightfv(id, GL_AMBIENT, ambient);				// Setup The Ambient Light
-	if( diffuse )
-		glLightfv(id, GL_DIFFUSE, diffuse);				// Setup The Diffuse Light
-	if( specular )
-		glLightfv(id, GL_SPECULAR, specular);			// Position The Light
-	if( position )
-		glLightfv(id, GL_POSITION, position);			// Position The Light
-	if( attenuate )
-	{
-		glLightf(id, GL_CONSTANT_ATTENUATION, attenuate[0]);
-		glLightf(id, GL_LINEAR_ATTENUATION, attenuate[1]);
-		glLightf(id, GL_QUADRATIC_ATTENUATION, attenuate[2]);
-	}
+	glLightfv(id, GL_AMBIENT, ambient);				// Setup The Ambient Light
+	glLightfv(id, GL_DIFFUSE, diffuse);				// Setup The Diffuse Light
+	glLightfv(id, GL_POSITION, position);			// Position The Light
 	glEnable(id);                                   // Enable Light One
 }
 
@@ -218,7 +207,7 @@ GLvoid DrawLine(float x1, float y1, float z1,
 				float x2, float y2, float z2,
 				int c, float w)
 {
-	glPushAttrib(GL_ENABLE_BIT | GL_LINE_BIT | GL_HINT_BIT | GL_CURRENT_BIT);
+	glPushAttrib(GL_ENABLE_BIT | GL_LINE_BIT | GL_HINT_BIT | GL_COLOR_BUFFER_BIT);
 	glDisable(GL_LIGHTING);
 	glDisable(GL_TEXTURE_2D);
 	glLineWidth(w);
@@ -238,7 +227,7 @@ GLvoid DrawLine(float x1, float y1,
 				float x2, float y2,
 				int c, float w)
 {
-	glPushAttrib(GL_ENABLE_BIT | GL_LINE_BIT | GL_HINT_BIT | GL_CURRENT_BIT);
+	glPushAttrib(GL_ENABLE_BIT | GL_LINE_BIT | GL_HINT_BIT | GL_COLOR_BUFFER_BIT);
 	glDisable(GL_LIGHTING);
 	glDisable(GL_TEXTURE_2D);
 	glLineWidth(w);
@@ -256,7 +245,7 @@ GLvoid DrawLine(float x1, float y1,
 
 GLvoid DrawFrame(float x, float y, float z, float r, float w)
 {
-	glPushAttrib(GL_TRANSFORM_BIT | GL_ENABLE_BIT | GL_LINE_BIT | GL_HINT_BIT | GL_CURRENT_BIT);
+	glPushAttrib(GL_TRANSFORM_BIT | GL_ENABLE_BIT | GL_LINE_BIT | GL_HINT_BIT | GL_COLOR_BUFFER_BIT);
 	glPushMatrix();
 	glTranslatef(x, y, z);
 	glDisable(GL_LIGHTING);
@@ -403,7 +392,6 @@ void DrawBox(
 		DWORD color,
 		float line)
 {
-	glPushAttrib(GL_LINE_BIT | GL_CURRENT_BIT);
 	if(color)
 		SetColor(color);
 	if(line)
@@ -415,14 +403,12 @@ void DrawBox(
 		glVertex2f( left+width, top);
 		glVertex2f( left, top);
 	glEnd();
-	glPopAttrib();
 }
 void FillBox(
 		float left, float top,
 		float width, float height,
 		DWORD color)
 {
-	glPushAttrib(GL_CURRENT_BIT);
 	if(color)
 		SetColor(color);
 	glBegin(GL_QUADS);
@@ -431,7 +417,6 @@ void FillBox(
 		glVertex2f( left+width, top+height);
 		glVertex2f( left+width, top);
 	glEnd();
-	glPopAttrib();
 }
 
 void DrawBox(
@@ -440,7 +425,6 @@ void DrawBox(
 	DWORD color,
 	float line)
 {
-	glPushAttrib(GL_LINE_BIT | GL_CURRENT_BIT);
 	if (color)
 		SetColor(color);
 	if (line)
@@ -452,14 +436,12 @@ void DrawBox(
 	glVertex2i(left + width, top);
 	glVertex2i(left, top);
 	glEnd();
-	glPopAttrib();
 }
 void FillBox(
 	int left, int top,
 	int width, int height,
 	DWORD color)
 {
-	glPushAttrib(GL_CURRENT_BIT);
 	if (color)
 		SetColor(color);
 	glBegin(GL_QUADS);
@@ -468,7 +450,6 @@ void FillBox(
 	glVertex2i(left + width, top + height);
 	glVertex2i(left + width, top);
 	glEnd();
-	glPopAttrib();
 }
 
 void DrawCube(float side)

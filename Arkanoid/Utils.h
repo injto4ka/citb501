@@ -282,6 +282,7 @@ class Directory
 {
 	HANDLE h;
 	char m_pchName[MAX_PATH + 1], m_pchBuff[MAX_PATH + 1];
+	void Reset();
 	WIN32_FIND_DATA m_data;
 public:
 	FileAttributes GetAttributes() const { return m_data; }
@@ -295,7 +296,6 @@ public:
 	void Set(const char *path = NULL, const char *ext = NULL);
 	const char *Get() const { return m_pchName; }
 	BOOL Next();
-	void Reset();
 	const char *GetCurrent();
 	static BOOL SetCurrent(const char *current);
 };
