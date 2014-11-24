@@ -32,7 +32,7 @@ LONG nLeft = 400, nLastLeft = 0;		// Left Position
 LONG nTop = 300, nLastTop = 0; 		// Top Position
 LONG nWinWidth = 800;
 LONG nWinHeight = 600;
-float fPerspAngle = 45;
+float fPerspAngle = 60;
 float fPerspNearZ = 0.01f;
 float fPerspFarZ = 100.0f;
 RECT rect; 		      // oustide borders
@@ -148,7 +148,7 @@ struct Brick
 	}
 } bricks[ nBrickCount ] = {};
 const float
-	fLevelWidth = 3.4f,
+	fLevelWidth = 5.0f,
 	fBrickMargin = 0.01f,
 	fBrickSize = fLevelWidth / (LEVEL_WIDTH - 1) - fBrickMargin,
 	fLevelHeight = (LEVEL_HEIGHT - 1) * (fBrickSize + fBrickMargin),
@@ -435,7 +435,7 @@ void Draw3D()
 	if( !dlBrickBall )
 	{
 		CompileDisplayList cds(dlBrickBall);
-		DrawSphere(fBrickSize / 2);
+		DrawSphere(0.85f * fBrickSize / 2);
 	}
 	if( !dlBrickCube )
 	{
