@@ -44,8 +44,8 @@ BOOL bIsProgramLooping = TRUE;
 BOOL bCreateFullScreen = FALSE;
 LONG nDisplayWidth = 800;
 LONG nDisplayHeight = 600; 
-Image imgBall2D, imgBall3D, imgParticle;
-Texture texBall, texParticle;
+Image imgBall2D, imgBall3D, imgParticle, imgWood;
+Texture texBall, texParticle, texWood;
 GLfloat
 	pLightAmbient[]= { 0.5f, 0.5f, 0.5f, 1.0f }, // Ambient Light Values
 	pLightDiffuse[]= { 1.0f, 1.0f, 1.0f, 1.0f }, // Diffuse Light Values
@@ -61,7 +61,7 @@ BOOL bKeys[256] = {0};
 std::deque<Input> dInput;
 CriticalSection csInput, csShared;
 Timer timer;
-DisplayList dlBall, dlBrick;
+DisplayList dlBall, dlBrickBall, dlBrickCube;
 Transform transform;
 float
 	fPlaneZ = -4.0f,
@@ -80,7 +80,7 @@ Panel c_pEditor, c_pGame, c_pControls, c_pParticles;
 Label c_lPath;
 Button c_bExit, c_bLoad, c_bSave;
 CheckBox c_cbFullscreen, c_cbGeometry, c_cbParticles;
-SliderBar c_sFriction, c_sSlowdown;
+SliderBar c_sFriction, c_sSlowdown, c_sBrick;
 Control c_container;
 std::list<float> lfSelIntervals;
 const int nMaxFrames = 300;
@@ -122,6 +122,7 @@ bool bEditor = false;
 
 #define LEVEL_WIDTH 20
 #define LEVEL_HEIGHT 10
+#define MAX_TYPE 3
 const int nBrickCount = LEVEL_WIDTH * LEVEL_HEIGHT;
 struct Brick
 {
@@ -133,11 +134,15 @@ struct Brick
 		{
 		case 1:
 			texParticle.Bind();
-			dlBrick.Execute();
+			dlBrickBall.Execute();
+			break;
+		case 2:
+			texWood.Bind();
+			dlBrickCube.Execute();
 			break;
 		default:
 			texBall.Bind();
-			dlBrick.Execute();
+			dlBrickBall.Execute();
 		}
 	}
 } bricks[ nBrickCount ] = {};
@@ -148,7 +153,8 @@ const float
 	fLevelOffsetY = -0.5f,
 	fLevelMinY = 0.0f,
 	fLevelMaxY = 1.7f,
-	fBallEditorR = 0.07f,
+	fBrickBallR = 0.07f,
+	fBrickCubeSide = 0.14f,
 	fMaxSelDist2 = 0.1f;
 float fJumpEffectZ = 0;
 int nSelectedBrick = -1;
@@ -176,18 +182,52 @@ void ToggleEditor()
 	c_pEditor.m_bVisible = bEditor;
 }
 
+void SetBrickType()
+{
+	if ( nSelectedBrick != -1 )
+		bricks[nSelectedBrick].type = Round(c_sBrick.m_slider.m_fValue);
+}
+
 void LoadLevel()
 {
 	const char *pchPath = fd.Open();
-	if( pchPath )
-		c_lPath.m_strText = pchPath;
+	if (!pchPath)
+		return;
+	c_lPath.m_strText = pchPath;
+	File f;
+	f.Open(pchPath, "rt");
+	int index = 0;
+	int types[nBrickCount] = {};
+	for (int i = 0; i < nBrickCount; i++)
+	{
+		int type = -1;
+		if (fscanf(f, "%d,", &type) <= 0 || type < 0 || type >= MAX_TYPE)
+		{
+			Print("Corrupted file!");
+			return;
+		}
+		types[i] = type;
+	}
+	for (int i = 0; i < nBrickCount; i++)
+	{
+		bricks[i].type = types[i];
+	}
 }
 
 void SaveLevel()
 {
 	const char *pchPath = fd.Save();
-	if( pchPath )
-		c_lPath.m_strText = pchPath;
+	if (!pchPath)
+		return;
+	c_lPath.m_strText = pchPath;
+	File f;
+	f.Open(pchPath, "wt");
+	char buff[128];
+	for (int i = 0; i < nBrickCount; i++)
+	{
+		int nCount = _snprintf(buff, sizeof(buff) - 1, "%d,", bricks[i].type);
+		fwrite(buff, nCount, 1, f);
+	}
 }
 
 void ToggleGeometry()
@@ -205,7 +245,7 @@ BOOL ReadImage(Image &image, const char *pchFilename)
 	ErrorCode err = image.ReadTGA(pchFilename);
 	if( !err )
 		return TRUE;
-	Print("Error reading image '%s': %s", pchFilename, err);
+	Print("Error reading image '%s': %s\n", pchFilename, err);
 	return FALSE;
 }
 
@@ -367,14 +407,21 @@ void Draw3D()
 	float time = timer.Time();
 	float dt = time - fLastDrawTime;
 	fLastDrawTime = time;
+	
+	if( !dlBrickBall )
+	{
+		CompileDisplayList cds(dlBrickBall);
+		DrawSphere(fBrickBallR);
+	}
+	if( !dlBrickCube )
+	{
+		CompileDisplayList cds(dlBrickCube);
+		DrawCube(fBrickCubeSide);
+	}
 
 	if( bEditor )
 	{
-		if( !dlBrick )
-		{
-			CompileDisplayList cds(dlBrick);
-			DrawSphere(fBallEditorR);
-		}
+		
 		if( bUpdateMouse )
 		{
 			int nNewSelectedBrick = -1;
@@ -394,6 +441,8 @@ void Draw3D()
 			{
 				fJumpEffectZ = 0;
 				nSelectedBrick = nNewSelectedBrick;
+				if (nSelectedBrick != -1)
+					c_sBrick.SetValue((float)bricks[nSelectedBrick].type);
 			}
 		}
 		for(int i = 0; i < nBrickCount; i++)
@@ -606,15 +655,26 @@ void Draw()
 	glPopAttrib();
 }
 
+void Randomize()
+{
+	for (int i = 0; i < nBrickCount; i++)
+		bricks[i].type = Random(MAX_TYPE);
+}
+
 void Init()
 {
 	ReadImage(imgBall2D, "art/ball2d.tga");
 	ReadImage(imgBall3D, "art/ball3d.tga");
 	ReadImage(imgParticle, "art/star.tga");
+	ReadImage(imgWood, "art/crate.tga");
 
 	texBall.minFilter = GL_LINEAR_MIPMAP_NEAREST;
 	texBall.magFilter = GL_LINEAR;
 	texBall.mipmapped = TRUE;
+
+	texWood.minFilter = GL_LINEAR_MIPMAP_NEAREST;
+	texWood.magFilter = GL_LINEAR;
+	texWood.mipmapped = TRUE;
 
 	fd.m_strFileDir = "Data";
 	fd.AddFilter("lvl", "Level files");
@@ -706,6 +766,19 @@ void Init()
 	c_sSlowdown.m_slider.m_fMax = 3.0f;
 	c_sSlowdown.m_slider.m_fMin = -3.0f;
 
+	c_sFriction.CopyTo(c_sBrick);
+	c_sBrick.m_name.m_strText = "Type";
+	c_sBrick.m_nHeight = 40;
+	c_sBrick.m_nBottom = 40;
+	c_sBrick.m_nAnchorRight = 10;
+	c_sBrick.m_slider.m_nAnchorTop = 5;
+	c_sBrick.m_slider.m_nAnchorRight = 5;
+	c_sBrick.m_slider.m_fValue = 0;
+	c_sBrick.m_slider.m_fMin = 0.0f;
+	c_sBrick.m_slider.m_fMax = 2.0f;
+	c_sBrick.m_pchFormat = "%.0f";
+	c_sBrick.m_slider.OnValueChanged = SetBrickType;
+
 	c_pParticles.Add(&c_sFriction);
 	c_pParticles.Add(&c_sSlowdown);
 
@@ -725,12 +798,13 @@ void Init()
 	c_pGame.Add(&c_pControls);
 	c_pGame.Add(&c_pParticles);
 
-	c_pEditor.SetBounds(10, 10, 600, 100);
+	c_pEditor.SetBounds(10, 10, 600, 120);
 	c_pEditor.SetAnchor(10, -1);
 	c_pEditor.m_bVisible = false;
 	c_pEditor.Add(&c_lPath);
 	c_pEditor.Add(&c_bLoad);
 	c_pEditor.Add(&c_bSave);
+	c_pEditor.Add(&c_sBrick);
 
 	c_container.Add(&c_pGame);
 	c_container.Add(&c_pEditor);
@@ -748,8 +822,7 @@ void Init()
 			brick.y = fPosY;
 		}
 	}
-	for(int i = 0; i < 30; i++)
-		bricks[Random(nBrickCount)].type = 1;
+	// Randomize();
 }
 
 void Redraw()
@@ -806,6 +879,10 @@ BOOL glCreate()
 	err = texParticle.Create(imgParticle);
 	if( err )
 		Print("Error creating particle texBall: %s", err);
+	
+	err = texWood.Create(imgWood);
+	if( err )
+		Print("Error creating texture: %s", err);
 
 	fd.m_hWnd = hWnd;
 
@@ -818,7 +895,8 @@ void glDestroy()
 	texBall.Destroy();
 	texParticle.Destroy();
 	dlBall.Destroy();
-	dlBrick.Destroy();
+	dlBrickBall.Destroy();
+	dlBrickCube.Destroy();
 }
 
 //================================================================================================================
@@ -1139,11 +1217,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLin
 
 	Init();
 
+	/*
 	if( !CreateThread(NULL, 0, UpdateProc, NULL, 0, NULL) )
 	{
 		Message("Failed to start the update thread!");
 		return -1;
 	}
+	*/
 
 	while (bIsProgramLooping)
 	{
@@ -1170,6 +1250,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLin
 						DispatchMessage(&msg);
 						continue;
 					}
+
+					Update();
+
 					if( bVisible )
 					{
 						Redraw();
