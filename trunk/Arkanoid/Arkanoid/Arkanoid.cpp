@@ -78,7 +78,7 @@ Font font("Times New Roman", -16), smallFont("Courier New", -12);
 Event evInput;
 Panel c_pEditor, c_pGame, c_pControls, c_pParticles;
 Label c_lPath;
-Button c_bExit, c_bOpen;
+Button c_bExit, c_bLoad, c_bSave;
 CheckBox c_cbFullscreen, c_cbGeometry, c_cbParticles;
 SliderBar c_sFriction, c_sSlowdown;
 Control c_container;
@@ -176,9 +176,16 @@ void ToggleEditor()
 	c_pEditor.m_bVisible = bEditor;
 }
 
-void Browse()
+void LoadLevel()
 {
 	const char *pchPath = fd.Open();
+	if( pchPath )
+		c_lPath.m_strText = pchPath;
+}
+
+void SaveLevel()
+{
+	const char *pchPath = fd.Save();
 	if( pchPath )
 		c_lPath.m_strText = pchPath;
 }
@@ -609,13 +616,15 @@ void Init()
 	texBall.magFilter = GL_LINEAR;
 	texBall.mipmapped = TRUE;
 
+	fd.m_strFileDir = "Data";
+	fd.AddFilter("lvl", "Level files");
 	fd.AddFilter("txt", "Text files");
-	fd.AddFilter("cpp", "Source files");
 	fd.AddFilter("tga", "Image files");
 
 	font.m_bBold = true;
 
-	c_lPath.SetBounds(5, 125, 390, 20);
+	c_lPath.SetBounds(130, 10, 390, 20);
+	c_lPath.m_nAnchorRight = 10;
 	c_lPath.m_strText = "";
 	c_lPath.m_pFont = &smallFont;
 	c_lPath.m_nMarginX = 5;
@@ -626,7 +635,7 @@ void Init()
 	c_lPath.m_nForeColor = 0xff0000ff;
 	c_lPath.CopyTo(c_bExit);
 
-	c_bExit.SetBounds(100, 10, 120, 60);
+	c_bExit.SetBounds(50, 10, 120, 60);
 	c_bExit.m_strText = "Exit";
 	c_bExit.m_pFont = &font;
 	c_bExit.m_eAlignV = ALIGN_CENTER;
@@ -638,12 +647,17 @@ void Init()
 	c_bExit.m_pOnClick = Terminate;
 	c_bExit.m_bAutoSize = true;
 	c_bExit.CopyTo(c_cbFullscreen);
-	c_bExit.CopyTo(c_bOpen);
+	c_bExit.CopyTo(c_bLoad);
 
-	c_bOpen.m_nLeft = 10;
-	c_bOpen.m_nBottom = 80;
-	c_bOpen.m_strText = "Browse";
-	c_bOpen.m_pOnClick = Browse;
+	c_bLoad.m_nLeft = 10;
+	c_bLoad.m_nBottom = 10;
+	c_bLoad.m_strText = "Load";
+	c_bLoad.m_pOnClick = LoadLevel;
+	c_bLoad.CopyTo(c_bSave);
+
+	c_bSave.m_nLeft = 70;
+	c_bSave.m_strText = "Save";
+	c_bSave.m_pOnClick = SaveLevel;
 
 	c_cbFullscreen.m_nBottom = 40;
 	c_cbFullscreen.m_strText = "Fullscreen";
@@ -698,8 +712,6 @@ void Init()
 	c_pControls.SetBounds(320, 10, 400, 150);
 	c_pControls.m_nBorderColor = 0xff0000ff;
 	c_pControls.m_nBackColor = 0xffffffff;
-	c_pControls.Add(&c_lPath);
-	c_pControls.Add(&c_bOpen);
 	c_pControls.Add(&c_bExit);
 	c_pControls.Add(&c_cbFullscreen);
 	c_pControls.Add(&c_cbGeometry);
@@ -716,6 +728,9 @@ void Init()
 	c_pEditor.SetBounds(10, 10, 600, 100);
 	c_pEditor.SetAnchor(10, -1);
 	c_pEditor.m_bVisible = false;
+	c_pEditor.Add(&c_lPath);
+	c_pEditor.Add(&c_bLoad);
+	c_pEditor.Add(&c_bSave);
 
 	c_container.Add(&c_pGame);
 	c_container.Add(&c_pEditor);
