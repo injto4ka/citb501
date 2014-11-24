@@ -17,7 +17,7 @@
 #endif
 
 BYTE nBpp = 32;				// Bits Per Pixel
-BYTE nDepth = 32;				// Number Of Bits For The Depth Buffer
+BYTE nDepth = 32;			// Number Of Bits For The Depth Buffer
 BYTE nStencil = 8;			// Number Of Bits For The Stencil Buffer
 LPTSTR pchCmdLine = "";
 int nShow = 0;
@@ -84,7 +84,7 @@ Button c_bExit, c_bLoad, c_bSave;
 CheckBox c_cbFullscreen, c_cbGeometry, c_cbParticles;
 SliderBar c_sFriction, c_sSlowdown, c_sBrick;
 Control c_container;
-std::list<float> lfSelIntervals;
+std::deque<float> lfSelIntervals;
 const float fTimeSumMax = 3;
 float fLastFrameTime = 0, fSelInterval = 0;
 bool bGeometry = false;
@@ -163,6 +163,7 @@ const float
 float fJumpEffectZ = 0;
 int nSelectedBrick = -1;
 std::string strCurrentLevel;
+bool bSortDraw = true;
 
 //=========================================================================================================
 
@@ -315,7 +316,11 @@ void Update()
 						ToggleEditor();
 						break;
 					case VK_F4:
-						Terminate();
+						if( keyboard.alt )
+							Terminate();
+						break;
+					case VK_F6:
+						bSortDraw = !bSortDraw;
 						break;
 					case VK_LEFT:
 						if(keyboard.alt && fBallR > 0.1f)
@@ -367,26 +372,28 @@ void Draw2D()
 	FORMAT(buff, "(%d, %d)", nMouseX, nMouseY);
 	font.Print(buff, (float)nWinWidth - 5, (float)nWinHeight, 0xffffffff, ALIGN_RIGHT, ALIGN_TOP);
 	
-	FORMAT(buff, "Ball N %d", nBallN);
+	FORMAT(buff, "Divs: %d, Sort: %s", nBallN, BOOL_TO_STR(bSortDraw));
 	font.Print(buff, (float)nWinWidth/2, (float)nWinHeight, 0xffffffff, ALIGN_CENTER, ALIGN_TOP);
 
 	lfSelIntervals.push_back(fSelInterval);
 	float fTimeSum = 0;
-	int nFrames = 0;
+	int nFrames = 0, nToRemove = 0;
 	auto it = lfSelIntervals.end(), first = it;
 	for(;;)
 	{
 		it--;
 		fTimeSum += *it;
 		nFrames++;
-		if( it == lfSelIntervals.begin() || fTimeSum > fTimeSumMax )
+		if( fTimeSum > fTimeSumMax )
+			nToRemove++;
+		if( it == lfSelIntervals.begin() )
 			break;
 	}
-	while( it != lfSelIntervals.begin() )
+	for(int i = 0; i < nToRemove; i++)
 		lfSelIntervals.pop_front();
 	if (nFrames)
 	{
-		FORMAT(buff, "%.1f", nFrames / fTimeSum);
+		FORMAT(buff, "%.0f", nFrames / fTimeSum);
 		font.Print(buff, 5, (float)nWinHeight, 0xffffffff, ALIGN_LEFT, ALIGN_TOP);
 	}
 
@@ -479,7 +486,7 @@ void Draw3D()
 			for(int i = 0; i < nBrickCount; i++)
 			{
 				const Brick &brick = bricks[i];
-				if( brick.type != k )
+				if( bSortDraw && brick.type != k )
 					continue;
 				bool bSelected = i == nSelectedBrick;
 				float z = 0;
@@ -497,6 +504,8 @@ void Draw3D()
 				glPopAttrib();
 				glPopMatrix();
 			}
+			if( !bSortDraw )
+				break;
 		}
 		glPopAttrib();
 		fJumpEffectZ += PI * dt;
