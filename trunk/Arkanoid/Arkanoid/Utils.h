@@ -60,6 +60,13 @@ inline int Round(float x)
 {
 	return Trunc(x < 0.0f ? (x - 0.5f) : (x + 0.5f));
 }
+inline float FastInvSqrt(float x)
+{
+	float res;
+	_asm rsqrtss xmm0, x
+	_asm movss res, xmm0
+	return res;
+}
 
 class File
 {
