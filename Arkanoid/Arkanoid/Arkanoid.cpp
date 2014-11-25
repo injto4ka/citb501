@@ -437,7 +437,7 @@ void Draw3D()
 	if( !dlBrickBall )
 	{
 		CompileDisplayList cds(dlBrickBall);
-		DrawSphere(0.85f * fBrickSize / 2);
+		DrawSphere(0.85f * fBrickSize / 2, 4);
 	}
 	if( !dlBrickCube )
 	{
