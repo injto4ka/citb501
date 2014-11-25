@@ -518,7 +518,6 @@ void Draw3D()
 	glDisable(GL_LIGHTING);
 	texStation.Bind();
 	dlBack.Execute();
-	glDisable(GL_FOG);
 	texElectronics.Bind();
 	dlSides.Execute();
 	glPopAttrib();
