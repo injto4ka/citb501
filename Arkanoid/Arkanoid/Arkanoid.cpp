@@ -44,8 +44,8 @@ BOOL bIsProgramLooping = TRUE;
 BOOL bCreateFullScreen = FALSE;
 LONG nDisplayWidth = 800;
 LONG nDisplayHeight = 600; 
-Image imgBall2D, imgBall3D, imgParticle, imgWood, imgStation, imgElectronics;
-Texture texBall, texParticle, texWood, texStation, texElectronics;
+Image imgBall2D, imgBall3D, imgParticle, imgWood, imgStation, imgElectronics, imgSmile;
+Texture texBall, texParticle, texWood, texStation, texElectronics, texSmile;
 GLfloat
 	pLightAmbient[]= { 0.5f, 0.5f, 0.5f, 1.0f }, // Ambient Light Values
 	pLightDiffuse[]= { 1.0f, 1.0f, 1.0f, 1.0f }, // Diffuse Light Values
@@ -69,11 +69,12 @@ const float
 	fPlaneZDef = -5.0f,
 	fParPlaneZ = -20.0f,
 	fBallSpeed = 2.0f,
-	fBallRotation = 60.0f;
+	fBallRotation = 60.0f,
+	fBallXStart = 0, fBallYStart = -2.0f, fBallZStart = 0;
 float
 	fPlaneZ = fPlaneZDef,
-	fBallX = 0, fBallY = 0, fBallZ = 0, fBallA = 0,
-	fBallX0 = 0, fBallY0 = 0,
+	fBallX = fBallXStart, fBallY = fBallYStart, fBallZ = fBallZStart,
+	fBallA = 0,
 	fBallDirX = 0, fBallDirY = 0,
 	fBallRotX = 0, fBallRotY = 1, fBallRotZ = 0,
 	fSelX = -1.0f, fSelY = -1.0f, fSelZ = 0.0f;
@@ -134,28 +135,13 @@ struct Brick
 {
 	int type;
 	float x, y;
-	void Draw() const
-	{
-		switch( type )
-		{
-		case 1:
-			texParticle.Bind();
-			dlBrickBall.Execute();
-			break;
-		case 2:
-			texWood.Bind();
-			dlBrickCube.Execute();
-			break;
-		default:
-			texBall.Bind();
-			dlBrickBall.Execute();
-		}
-	}
 } bricks[ nBrickCount ] = {};
 const float
 	fLevelWidth = 5.0f,
 	fBrickMargin = 0.01f,
 	fBrickSize = fLevelWidth / (LEVEL_WIDTH - 1) - fBrickMargin,
+	fBrickRadiusBall = 0.85f * fBrickSize / 2,
+	fBrickRadiusCube = fBrickSize / 2,
 	fLevelHeight = (LEVEL_HEIGHT - 1) * (fBrickSize + fBrickMargin),
 	fLevelOffsetX = 0,
 	fLevelOffsetY = 0.5f,
@@ -236,6 +222,11 @@ bool LoadLevel(const char *pchPath)
 		bricks[i].type = types[i];
 	}
 	nSelectedBrick = -1;
+	fBallX = fBallXStart;
+	fBallY = fBallYStart;
+	fBallZ = fBallZStart;
+	fBallDirX = 0;
+	fBallDirY = 0;
 	return true;
 }
 
@@ -434,6 +425,17 @@ void ScreenToScene(const int &x0, const int &y0, float &x, float &y, float &z)
 	z = (float)dZ;
 }
 
+void SetNewDir(float dx, float dy)
+{
+	float fDist2 = dx*dx + dy*dy;
+	if( fDist2 > 0 )
+	{
+		float fDistRec = FastInvSqrt(fDist2);
+		fBallDirX = dx * fDistRec;
+		fBallDirY = dy * fDistRec;
+	}
+}
+
 void Draw3D()
 {
 	glTranslatef(0, 0, fPlaneZ);
@@ -444,13 +446,7 @@ void Draw3D()
 	if( bUpdateMouse )
 	{
 		ScreenToScene(nNewWinX, nNewWinY, fSelX, fSelY, fSelZ);
-		float dx = fSelX - fBallX, dy = fSelY - fBallY, fDist2 = dx*dx + dy*dy;
-		if( fDist2 > 0 )
-		{
-			float fDistRec = FastInvSqrt(fDist2);
-			fBallDirX = dx * fDistRec;
-			fBallDirY = dy * fDistRec;
-		}
+		SetNewDir(fSelX - fBallX, fSelY - fBallY);
 	}
 
 	float time = timer.Time();
@@ -460,12 +456,12 @@ void Draw3D()
 	if( !dlBrickBall )
 	{
 		CompileDisplayList cds(dlBrickBall);
-		DrawSphere(0.85f * fBrickSize / 2, 4);
+		DrawSphere(fBrickRadiusBall, 4);
 	}
 	if( !dlBrickCube )
 	{
 		CompileDisplayList cds(dlBrickCube);
-		DrawCube(fBrickSize);
+		DrawCube(2 * fBrickRadiusCube);
 	}
 	if( !dlBack )
 	{
@@ -522,11 +518,60 @@ void Draw3D()
 	dlSides.Execute();
 	glPopAttrib();
 
+	glPushAttrib(GL_ENABLE_BIT);
+	if( bEditor )
+	{
+		if( nSelectedBrick == -1 )
+			glDisable(GL_FOG);
+		else
+			glEnable(GL_FOG);
+	}
+	for(int k = 0; k < MAX_TYPE; k++)
+	{
+		for(int i = 0; i < nBrickCount; i++)
+		{
+			const Brick &brick = bricks[i];
+			if( bSortDraw && brick.type != k )
+				continue;
+			bool bSelected = i == nSelectedBrick;
+			float z = 0;
+			glPushAttrib(GL_ENABLE_BIT);
+			if( bEditor && bSelected )
+			{
+				z = 0.1f + 0.1f*sinf(fJumpEffectZ);
+				glDisable(GL_FOG);
+			}
+			glPushMatrix();
+			glTranslatef(brick.x, brick.y, z);
+			switch( brick.type )
+			{
+			case 1:
+				texSmile.Bind();
+				dlBrickBall.Execute();
+				break;
+			case 2:
+				texWood.Bind();
+				dlBrickCube.Execute();
+				break;
+			default:
+				if( bEditor )
+				{
+					texParticle.Bind();
+					dlBrickBall.Execute();
+				}
+			}
+			glPopMatrix();
+			glPopAttrib();
+		}
+		if( !bSortDraw )
+			break;
+	}
+	glPopAttrib();
+
 	if( bEditor )
 	{
 		GLfloat pGlowPos[] = {fSelX, fSelY, fSelZ, 1.0f};
 		glLightfv(GL_LIGHT2, GL_POSITION, pGlowPos);
-
 		if( bUpdateMouse )
 		{
 			int nNewSelectedBrick = -1;
@@ -550,38 +595,6 @@ void Draw3D()
 					c_sBrick.SetValue((float)bricks[nSelectedBrick].type);
 			}
 		}
-		glPushAttrib(GL_ENABLE_BIT);
-		if( nSelectedBrick == -1 )
-			glDisable(GL_FOG);
-		else
-			glEnable(GL_FOG);
-		for(int k = 0; k < MAX_TYPE; k++)
-		{
-			for(int i = 0; i < nBrickCount; i++)
-			{
-				const Brick &brick = bricks[i];
-				if( bSortDraw && brick.type != k )
-					continue;
-				bool bSelected = i == nSelectedBrick;
-				float z = 0;
-				glPushAttrib(GL_ENABLE_BIT);
-				if( bSelected )
-				{
-					z = 0.1f + 0.1f*sinf(fJumpEffectZ);
-					glDisable(GL_FOG);
-				}
-				glPushMatrix();
-				glTranslatef(brick.x, brick.y, z);
-
-				brick.Draw();
-			
-				glPopAttrib();
-				glPopMatrix();
-			}
-			if( !bSortDraw )
-				break;
-		}
-		glPopAttrib();
 		fJumpEffectZ += PI * dt;
 	}
 	else
@@ -597,13 +610,64 @@ void Draw3D()
 		float d = fBallSpeed * dt, dx = fBallDirX * d, dy = fBallDirY * d;
 		fBallX += dx;
 		fBallY += dy;
-		if( fBallX - fBallR <= -fLevelSpanX || fBallX + fBallR >= fLevelSpanX  )
+		if( fBallDirX < 0 && fBallX - fBallR <= -fLevelSpanX || fBallDirX > 0 && fBallX + fBallR >= fLevelSpanX  )
 			fBallDirX = -fBallDirX;
-		if( fBallY - fBallR <= -fLevelSpanY || fBallY + fBallR >= fLevelSpanY  )
+		if( fBallDirY < 0 && fBallY - fBallR <= -fLevelSpanY || fBallDirY > 0 && fBallY + fBallR >= fLevelSpanY  )
 			fBallDirY = -fBallDirY;
 
-		DrawLine(fSelX, fSelY, fSelZ, fBallX, fBallY, fBallZ, 0xff00ffff);
-		DrawFrame(fSelX, fSelY, fSelZ);
+		if( bInterface )
+		{
+			DrawLine(fSelX, fSelY, fSelZ, fBallX, fBallY, fBallZ, 0xff00ffff);
+			DrawFrame(fSelX, fSelY, fSelZ);
+		}
+
+		float fMinDist = fBallR + fBrickSize / 2, fMinDist2 = fMinDist * fMinDist;
+		float fMinDistBall = fBallR + fBrickRadiusBall, fMinDistBall2 = fMinDistBall * fMinDistBall;
+		for(int i = 0; i < nBrickCount; i++)
+		{
+			Brick &brick = bricks[i];
+			if( !brick.type )
+				continue;
+			float dx = fBallX - brick.x, dy = fBallY - brick.y, d2 = dx * dx + dy * dy;
+			if( fMinDist2 < d2 )
+				continue;
+			float normalx = 0, normaly = 0, normal2 = 0;
+			bool bCollision = false;
+			switch( brick.type )
+			{
+			case 1:
+				if( fMinDistBall2 >= d2 )
+				{
+					bCollision = true;
+					brick.type = 0;
+					if( d2 > 0 )
+					{
+						normalx = dx;
+						normaly = dy;
+						normal2 = d2;
+					}
+				}
+				break;
+			case 2:
+				brick.type = 0;
+				break;
+			}
+			if( bCollision )
+			{
+				if( !normal2 )
+				{
+					fBallDirX = -fBallDirX;
+					fBallDirY = -fBallDirY;
+				}
+				else
+				{
+					float dot = fBallDirX * normalx + fBallDirY * normaly;
+					float len = -2 * dot / normal2;
+					SetNewDir(fBallDirX + len * normalx, fBallDirY + len * normaly);
+				}
+				break;
+			}
+		}
 
 		glPushMatrix();
 		glTranslatef(fBallX, fBallY, fBallZ);
@@ -793,6 +857,7 @@ void Init()
 	ReadImage(imgWood, "art/crate.tga");
 	ReadImage(imgStation, "art/station.tga");
 	ReadImage(imgElectronics, "art/electronics.tga");
+	ReadImage(imgSmile, "art/smile.tga");
 
 	texParticle.minFilter = GL_NEAREST;
 	texParticle.magFilter = GL_NEAREST;
@@ -1034,6 +1099,10 @@ BOOL glCreate()
 	err = texElectronics.Create(imgElectronics);
 	if( err )
 		Print("Error creating texture: %s", err);
+	
+	err = texSmile.Create(imgSmile);
+	if( err )
+		Print("Error creating texture: %s", err);
 
 	fd.m_hWnd = hWnd;
 
@@ -1042,9 +1111,6 @@ BOOL glCreate()
 
 void glDestroy()
 {
-	font.Destroy();
-	texBall.Destroy();
-	texParticle.Destroy();
 	dlBall.Destroy();
 	dlBrickBall.Destroy();
 	dlBrickCube.Destroy();
