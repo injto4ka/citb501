@@ -49,8 +49,8 @@ Texture texBall, texParticle, texWood, texStation, texElectronics;
 GLfloat
 	pLightAmbient[]= { 0.5f, 0.5f, 0.5f, 1.0f }, // Ambient Light Values
 	pLightDiffuse[]= { 1.0f, 1.0f, 1.0f, 1.0f }, // Diffuse Light Values
-	pLightGlowDiffuse[]= { 0.0f, 1.0f, 0.0f, 1.0f }, // Effect Light Values
-	pLightGlowAttenuate[] = {1.0f, 1.0f, 1.0f},
+	pLightGlowDiffuse[]= { 1.0f, 1.0f, 1.0f, 1.0f }, // Effect Light Values
+	pLightGlowAttenuate[] = {0.25f, 1.0f, 2.0f},
 	pLightPosition[]= { 0.0f, 0.0f, 0.0f, 1.0f }, // Light Position
 	pFogColor[]= {0.0f, 0.0f, 0.0f, 1.0f}; // Fog Color
 float fFogStart = 0.0f;
@@ -74,10 +74,12 @@ float
 	fPlaneZ = fPlaneZDef,
 	fBallX = 0, fBallY = 0, fBallZ = 0, fBallA = 0,
 	fBallX0 = 0, fBallY0 = 0,
+	fBallDirX = 0, fBallDirY = 0,
+	fBallRotX = 0, fBallRotY = 1, fBallRotZ = 0,
 	fSelX = -1.0f, fSelY = -1.0f, fSelZ = 0.0f;
 int nMouseX = 0, nMouseY = 0;
 int nNewWinX = -1, nNewWinY = -1, nBallN = 6;
-float fBallR = 0.5f;
+float fBallR = 0.2f;
 bool bNewBall = false, bNewMouse = false;
 Font font("Times New Roman", -16), smallFont("Courier New", -12);
 Event evTask;
@@ -440,10 +442,16 @@ void Draw3D()
 	bNewMouse = false;
 
 	if( bUpdateMouse )
+	{
 		ScreenToScene(nNewWinX, nNewWinY, fSelX, fSelY, fSelZ);
-
-	GLfloat pGlowPos[] = {fSelX, fSelY, fSelZ, 1.0f};
-	glLightfv(GL_LIGHT2, GL_POSITION, pGlowPos);
+		float dx = fSelX - fBallX, dy = fSelY - fBallY, fDist2 = dx*dx + dy*dy;
+		if( fDist2 > 0 )
+		{
+			float fDistRec = FastInvSqrt(fDist2);
+			fBallDirX = dx * fDistRec;
+			fBallDirY = dy * fDistRec;
+		}
+	}
 
 	float time = timer.Time();
 	float dt = time - fLastDrawTime;
@@ -510,13 +518,16 @@ void Draw3D()
 	glDisable(GL_LIGHTING);
 	texStation.Bind();
 	dlBack.Execute();
+	glDisable(GL_FOG);
 	texElectronics.Bind();
 	dlSides.Execute();
 	glPopAttrib();
 
 	if( bEditor )
 	{
-		
+		GLfloat pGlowPos[] = {fSelX, fSelY, fSelZ, 1.0f};
+		glLightfv(GL_LIGHT2, GL_POSITION, pGlowPos);
+
 		if( bUpdateMouse )
 		{
 			int nNewSelectedBrick = -1;
@@ -584,39 +595,26 @@ void Draw3D()
 		}
 
 		fBallA += fBallRotation * dt;
-		float dx = fSelX - fBallX, dy = fSelY - fBallY, fDist2 = dx*dx + dy*dy;
-		if( fDist2 > 1e-6f )
-		{
-			// Interpolate the ball position towards the target position
-			float fDist = sqrtf(fDist2);
-			float fTravelTime = fDist / fBallSpeed;
-			if( dt > fTravelTime )
-			{
-				fBallX = fSelX;
-				fBallY = fSelY;
-			}
-			else
-			{
-				float progress = dt / fTravelTime;
-				fBallX += (fSelX - fBallX) * progress;
-				fBallY += (fSelY - fBallY) * progress;
-			}
-		}
-		else
-		{
-			fBallX = fSelX;
-			fBallY = fSelY;
-		}
+		float d = fBallSpeed * dt, dx = fBallDirX * d, dy = fBallDirY * d;
+		fBallX += dx;
+		fBallY += dy;
+		if( fBallX - fBallR <= -fLevelSpanX || fBallX + fBallR >= fLevelSpanX  )
+			fBallDirX = -fBallDirX;
+		if( fBallY - fBallR <= -fLevelSpanY || fBallY + fBallR >= fLevelSpanY  )
+			fBallDirY = -fBallDirY;
 
 		DrawLine(fSelX, fSelY, fSelZ, fBallX, fBallY, fBallZ, 0xff00ffff);
 		DrawFrame(fSelX, fSelY, fSelZ);
 
 		glPushMatrix();
 		glTranslatef(fBallX, fBallY, fBallZ);
-		glRotatef(fBallA, 0, 1, 0);
+		glRotatef(fBallA, fBallRotX, fBallRotY, fBallRotZ);
 		texBall.Bind();
 		dlBall.Execute();
 		glPopMatrix();
+		
+		GLfloat pGlowPos[] = {fBallX, fBallY, fBallZ, 1.0f};
+		glLightfv(GL_LIGHT2, GL_POSITION, pGlowPos);
 	}
 }
 
@@ -718,7 +716,6 @@ void Draw()
 	}
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_LIGHTING);
-	glEnable(GL_FOG);
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity ();
 	gluPerspective (fPerspAngle,
@@ -746,7 +743,6 @@ void Draw()
 	glPushAttrib(GL_ENABLE_BIT);
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_LIGHTING);
-	glDisable(GL_FOG);
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 	glOrtho(0, nWinWidth, 
