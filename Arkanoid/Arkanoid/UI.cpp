@@ -144,7 +144,7 @@ void Font::Print(const char *pchText, float x, float y, int nColor, int eAlignH,
 	if(!nLength)
 		return;
 
-	glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT);
+	glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT | GL_LIST_BIT);
 	glMatrixMode(GL_MODELVIEW); // Select The Modelview Matrix
 	glPushMatrix(); // Store The Modelview Matrix
 
@@ -179,11 +179,9 @@ void Font::Print(const char *pchText, float x, float y, int nColor, int eAlignH,
 	glDisable(GL_LIGHTING);
 	glRasterPos2f(alignedX, alignedY);
 
-	glPushAttrib(GL_LIST_BIT); // Pushes The Display List Bits To Keep Other Lists Inaffected
 	glListBase(m_uList - m_nFirst + m_nExpand*128); // Sets The Base Character to m_nFirst
 	// Draws The Display List Text
 	glCallLists(nLength, GL_UNSIGNED_BYTE, pchText);
-	glPopAttrib(); // Pops The Display List Bits
 	
 	glMatrixMode(GL_MODELVIEW); // Select The Modelview Matrix
 	glPopMatrix(); // Restore The Old Modelview Matrix
@@ -236,8 +234,7 @@ void Control::_Draw()
 	}
 	else
 	{
-		glPushAttrib(GL_ENABLE_BIT);
-		glPushAttrib(GL_SCISSOR_BIT);
+		glPushAttrib(GL_ENABLE_BIT | GL_SCISSOR_BIT);
 		glEnable(GL_SCISSOR_TEST);
 		GLint box[4] = {};
 		glGetIntegerv(GL_SCISSOR_BOX, box);
@@ -251,7 +248,6 @@ void Control::_Draw()
 		Draw();
 		for(size_t i = 0; i < m_vChilds.size(); i++)
 			m_vChilds[i]->_Draw();
-		glPopAttrib();
 		glPopAttrib();
 	}
 }
