@@ -96,7 +96,7 @@ void Image::FlipV()
 
 void Image::FlipC()
 {
-	if(m_uComps<PIXEL_COMP_RGB)
+	if(m_uComps < PIXEL_COMP_RGB)
 		return;
 	const int m=m_uComps;
 	const int s=m_uWidth*m_uHeight;
@@ -120,11 +120,14 @@ void Image::FlipC()
 // Read TGA format rgb or rgba image
 ErrorCode Image::ReadTGA(FILE* fp)
 {
+	char pchIdentification[256] = "";
 	TGAHeader header;
 	if(	!fp || !fread(&header, sizeof(TGAHeader), 1, fp) )
 		return "Failed to read the image header!";
-	if( header.m_iImageTypeCode != 2 || !SetSize(header.m_iWidth, header.m_iHeight, header.m_iBPP / 8))
+	if( header.m_iImageTypeCode != 2 || header.m_iIdentificationFieldSize >= 256 || !SetSize(header.m_iWidth, header.m_iHeight, header.m_iBPP / 8))
 		return "Unsupported image format!";
+	if( header.m_iIdentificationFieldSize && (header.m_iIdentificationFieldSize >= 256 || !fread(pchIdentification, 1, header.m_iIdentificationFieldSize, fp)) )
+		return "Failed to read the image identification!";
 	if( !fread(GetDataPtr(), 1, GetDataSize(), fp) )
 		return "Failed to read the image data!";
 	if(GET_BIT(header.m_ImageDescriptorByte, 5))

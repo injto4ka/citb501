@@ -44,8 +44,8 @@ BOOL bIsProgramLooping = TRUE;
 BOOL bCreateFullScreen = FALSE;
 LONG nDisplayWidth = 800;
 LONG nDisplayHeight = 600; 
-Image imgBall2D, imgBall3D, imgParticle, imgWood;
-Texture texBall, texParticle, texWood;
+Image imgBall2D, imgBall3D, imgParticle, imgWood, imgStation, imgElectronics;
+Texture texBall, texParticle, texWood, texStation, texElectronics;
 GLfloat
 	pLightAmbient[]= { 0.5f, 0.5f, 0.5f, 1.0f }, // Ambient Light Values
 	pLightDiffuse[]= { 1.0f, 1.0f, 1.0f, 1.0f }, // Diffuse Light Values
@@ -54,8 +54,8 @@ GLfloat
 	pLightPosition[]= { 0.0f, 0.0f, 0.0f, 1.0f }, // Light Position
 	pFogColor[]= {0.0f, 0.0f, 0.0f, 1.0f}; // Fog Color
 float fFogStart = 0.0f;
-float fFogEnd = 10.0f;
-float fFogDensity = 0.17f;
+float fFogEnd = 1.0f;
+float fFogDensity = 0.1f;
 float fLastDrawTime = 0;
 GLenum uFogMode = GL_EXP;
 GLenum uFogQuality = GL_DONT_CARE;
@@ -63,12 +63,12 @@ BOOL bKeys[256] = {0};
 std::deque<Input> dInput;
 CriticalSection csInput;
 Timer timer;
-DisplayList dlBall, dlBrickBall, dlBrickCube;
+DisplayList dlBall, dlBrickBall, dlBrickCube, dlBack, dlSides;
 Transform transform;
 const float
-	fPlaneZDef = -4.0f,
+	fPlaneZDef = -5.0f,
 	fParPlaneZ = -20.0f,
-	fBallSpeed = 1.0f,
+	fBallSpeed = 2.0f,
 	fBallRotation = 60.0f;
 float
 	fPlaneZ = fPlaneZDef,
@@ -122,7 +122,7 @@ particles[MAX_PARTICLES] = {0};
 FileDialog fd;
 Directory dir;
 const char *pchCurrentDir = ".";
-bool bEditor = false;
+bool bEditor = false, bInterface = false;
 
 #define LEVEL_WIDTH 20
 #define LEVEL_HEIGHT 10
@@ -162,7 +162,10 @@ const float
 	fLevelMinY = fLevelOffsetY - fLevelHeight / 2,
 	fLevelMaxY = fLevelOffsetY + fLevelHeight / 2,
 	fMaxSelDist = fBrickSize,
-	fMaxSelDist2 = fMaxSelDist * fMaxSelDist;
+	fMaxSelDist2 = fMaxSelDist * fMaxSelDist,
+	fLevelDepth = 1.0f,
+	fLevelSpanX = 3.0f,
+	fLevelSpanY = 3 * fLevelSpanX / 4;
 float fJumpEffectZ = 0;
 int nSelectedBrick = -1;
 std::string strCurrentLevel;
@@ -184,11 +187,16 @@ void ToggleFullscreen()
 	PostMessage(hWnd, WM_QUIT, 0, 0);
 }
 
+void UpdateVisibility()
+{
+	c_pGame.m_bVisible = !bEditor && bInterface;
+	c_pEditor.m_bVisible = bEditor;
+}
+
 void ToggleEditor()
 {
 	bEditor = !bEditor;
-	c_pGame.m_bVisible = !bEditor;
-	c_pEditor.m_bVisible = bEditor;
+	UpdateVisibility();
 }
 
 void SetBrickType()
@@ -302,7 +310,10 @@ void Update()
 						}
 					}
 					if( mouse.wheel )
+					{
 						fPlaneZ += 0.1f * mouse.wheel;
+						Print("fPlaneZ = %f\n", fPlaneZ);
+					}
 				}
 				break;
 			}
@@ -313,6 +324,10 @@ void Update()
 				{
 					switch( keyboard.code )
 					{
+					case VK_ESCAPE:
+						bInterface = !bInterface;
+						UpdateVisibility();
+						break;
 					case VK_F11:
 						ToggleFullscreen();
 						break;
@@ -400,7 +415,7 @@ void Draw2D()
 		font.Print(buff, 5, (float)nWinHeight, 0xffffffff, ALIGN_LEFT, ALIGN_TOP);
 	}
 
-	if( !bEditor )
+	if( !bEditor && bInterface )
 	{
 		imgBall2D.Draw(0, 0);
 	}
@@ -444,6 +459,60 @@ void Draw3D()
 		CompileDisplayList cds(dlBrickCube);
 		DrawCube(fBrickSize);
 	}
+	if( !dlBack )
+	{
+		CompileDisplayList cds(dlBack);
+		const float depth = fLevelDepth, spanx = fLevelSpanX, spany = fLevelSpanY;
+		glBegin(GL_QUADS);
+		// background
+		glNormal3f(0.0f, 0.0f, 1.0f);
+		glTexCoord2f(0.0f, 0.0f); glVertex3f(-spanx, -spany, -depth);
+		glTexCoord2f(0.0f, 1.0f); glVertex3f(-spanx, spany, -depth);
+		glTexCoord2f(1.0f, 1.0f); glVertex3f(spanx, spany, -depth);
+		glTexCoord2f(1.0f, 0.0f); glVertex3f(spanx, -spany, -depth);
+		glEnd();
+	}
+
+	if( !dlSides )
+	{
+		CompileDisplayList cds(dlSides);
+		const float depth = fLevelDepth, spanx = fLevelSpanX, spany = fLevelSpanY;
+		glBegin(GL_QUADS);
+		// left side
+		glNormal3f(1.0f, 0.0f, 0.0f);
+		glTexCoord2f(1.0f, 0.0f); glVertex3f(-spanx, -spany, +depth);
+		glTexCoord2f(0.0f, 0.0f); glVertex3f(-spanx, spany, +depth);
+		glTexCoord2f(0.0f, 1.0f); glVertex3f(-spanx, spany, -depth);
+		glTexCoord2f(1.0f, 1.0f); glVertex3f(-spanx, -spany, -depth);
+		// right side
+		glNormal3f(-1.0f, 0.0f, 0.0f);
+		glTexCoord2f(0.0f, 0.0f); glVertex3f(spanx, -spany, +depth);
+		glTexCoord2f(0.0f, 1.0f); glVertex3f(spanx, spany, +depth);
+		glTexCoord2f(1.0f, 1.0f); glVertex3f(spanx, spany, -depth);
+		glTexCoord2f(1.0f, 0.0f); glVertex3f(spanx, -spany, -depth);
+		// bottom side
+		glNormal3f(0.0f, 1.0f, 0.0f);
+		glTexCoord2f(0.0f, 0.0f); glVertex3f(-spanx, -spany, +depth);
+		glTexCoord2f(0.0f, 1.0f); glVertex3f(spanx, -spany, +depth);
+		glTexCoord2f(1.0f, 1.0f); glVertex3f(spanx, -spany, -depth);
+		glTexCoord2f(1.0f, 0.0f); glVertex3f(-spanx, -spany, -depth);
+		// top side
+		glNormal3f(0.0f, -1.0f, 0.0f);
+		glTexCoord2f(1.0f, 1.0f); glVertex3f(-spanx, spany, +depth);
+		glTexCoord2f(0.0f, 1.0f); glVertex3f(spanx, spany, +depth);
+		glTexCoord2f(0.0f, 0.0f); glVertex3f(spanx, spany, -depth);
+		glTexCoord2f(1.0f, 0.0f); glVertex3f(-spanx, spany, -depth);
+		glEnd();
+	}
+
+	glPushAttrib(GL_ENABLE_BIT);
+	glEnable(GL_FOG);
+	glDisable(GL_LIGHTING);
+	texStation.Bind();
+	dlBack.Execute();
+	texElectronics.Bind();
+	dlSides.Execute();
+	glPopAttrib();
 
 	if( bEditor )
 	{
@@ -662,7 +731,7 @@ void Draw()
 	glPopAttrib();
 
 	// particles ---------------------------------------
-	glPushAttrib(GL_COLOR_BUFFER_BIT | GL_HINT_BIT | GL_ENABLE_BIT);
+	glPushAttrib(GL_COLOR_BUFFER_BIT | GL_HINT_BIT | GL_ENABLE_BIT | GL_CURRENT_BIT);
 	glDisable(GL_LIGHTING);
 	glDisable(GL_DEPTH_TEST);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE);
@@ -727,10 +796,20 @@ void Init()
 	ReadImage(imgBall3D, "art/ball3d.tga");
 	ReadImage(imgParticle, "art/star.tga");
 	ReadImage(imgWood, "art/crate.tga");
+	ReadImage(imgStation, "art/station.tga");
+	ReadImage(imgElectronics, "art/electronics.tga");
 
 	texParticle.minFilter = GL_NEAREST;
 	texParticle.magFilter = GL_NEAREST;
 	texParticle.mipmapped = FALSE;
+
+	texStation.minFilter = GL_LINEAR;
+	texStation.magFilter = GL_LINEAR;
+	texStation.mipmapped = FALSE;
+
+	texElectronics.minFilter = GL_LINEAR;
+	texElectronics.magFilter = GL_LINEAR;
+	texElectronics.mipmapped = FALSE;
 
 	fd.m_strFileDir = "Data";
 	fd.AddFilter("txt", "Text files");
@@ -851,6 +930,7 @@ void Init()
 
 	c_pGame.Add(&c_pControls);
 	c_pGame.Add(&c_pParticles);
+	c_pGame.m_bVisible = bInterface;
 
 	c_pEditor.SetBounds(10, 10, 600, 120);
 	c_pEditor.SetAnchor(10, -1);
@@ -862,7 +942,6 @@ void Init()
 
 	c_container.Add(&c_pGame);
 	c_container.Add(&c_pEditor);
-
 	c_container._Invalidate();
 
 	for(int y = 0, o = 0; y < LEVEL_HEIGHT; y++)
@@ -952,6 +1031,14 @@ BOOL glCreate()
 	err = texWood.Create(imgWood);
 	if( err )
 		Print("Error creating texture: %s", err);
+	
+	err = texStation.Create(imgStation);
+	if( err )
+		Print("Error creating texture: %s", err);
+	
+	err = texElectronics.Create(imgElectronics);
+	if( err )
+		Print("Error creating texture: %s", err);
 
 	fd.m_hWnd = hWnd;
 
@@ -966,6 +1053,8 @@ void glDestroy()
 	dlBall.Destroy();
 	dlBrickBall.Destroy();
 	dlBrickCube.Destroy();
+	dlBack.Destroy();
+	dlSides.Destroy();
 }
 
 //================================================================================================================
