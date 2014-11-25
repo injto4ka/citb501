@@ -50,10 +50,9 @@ struct TGAHeader
 };
 #pragma pack(pop)
 
-#define PIXEL_COMP_OLD	0xFF
-#define PIXEL_COMP_GRAY	0x01
-#define PIXEL_COMP_RGB	0x03
-#define PIXEL_COMP_RGBA	0x04
+#define PIXEL_COMP_GRAY	1
+#define PIXEL_COMP_RGB	3
+#define PIXEL_COMP_RGBA	4
 
 #define REPLACE(a,b) (a)^=(b)^=(a)^=(b)
 
@@ -179,7 +178,7 @@ public:
 	GLint				width; // For Not Mipmapped Must be 2^n + 2(border) for some integer n. 
 	GLint				height;	// For Not Mipmapped Must be 2^m + 2(border) for some integer m. 
 	GLint				levelDetail; // The level-of-detail number. Level 0 is the base image level. Level n is the nth mipmap reduction image. 
-    GLint				childs; // The number of color childs in the texture. Must be 1, 2, 3, or 4. 	
+    GLint				components; // The number of color components in the texture. Must be 1, 2, 3, or 4. 	
 	GLint				border;	// The width of the border. Must be either 0 or 1. 
     GLuint				format; // GL_COLOR_INDEX, GL_STENCIL_INDEX, GL_DEPTH_COMPONENT,GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA, GL_RGB, GL_RGBA, GL_LUMINANCE,GL_LUMINANCE_ALPHA, GL_BGR_EXT, GL_BGRA_EXT 
     GLuint				dataFormat; // GL_UNSIGNED_BYTE, GL_BYTE, GL_BITMAP, GL_UNSIGNED_SHORT, GL_SHORT, GL_UNSIGNED_INT, GL_INT, and GL_FLOAT	
@@ -187,12 +186,11 @@ public:
 	GLint				magFilter; // Mag Filter To Use (GL_NEAREST, GL_LINEAR)
 	GLint				minFilter; // Min Filter To Use (GL_NEAREST, GL_LINEAR)
 	GLint				wrap; // Clamped or Repeated (GL_CLAMP, GL_REPEAT)
-	int					error;
 
 	Texture():
-		width(0), height(0), id(-1),
-		minFilter(GL_LINEAR), magFilter(GL_LINEAR), wrap(GL_REPEAT),
-		childs(3), data(NULL), dataFormat(GL_UNSIGNED_BYTE), format(GL_RGB)
+		width(0), height(0), id(-1), mipmapped(TRUE), levelDetail(0), border(0),
+		minFilter(GL_LINEAR_MIPMAP_NEAREST), magFilter(GL_LINEAR), wrap(GL_REPEAT),
+		components(PIXEL_COMP_RGB), data(NULL), dataFormat(GL_UNSIGNED_BYTE), format(GL_RGB)
 	{}
 	~Texture() { Destroy(); }
 	ErrorCode Create(const Image &image);

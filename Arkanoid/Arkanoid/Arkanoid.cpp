@@ -65,13 +65,16 @@ CriticalSection csInput, csShared;
 Timer timer;
 DisplayList dlBall, dlBrickBall, dlBrickCube;
 Transform transform;
-float
-	fPlaneZ = -4.0f,
+const float
+	fPlaneZDef = -4.0f,
 	fParPlaneZ = -20.0f,
+	fBallSpeed = 1.0f,
+	fBallRotation = 60.0f;
+float
+	fPlaneZ = fPlaneZDef,
 	fBallX = 0, fBallY = 0, fBallZ = 0, fBallA = 0,
 	fBallX0 = 0, fBallY0 = 0,
-	fSelX = -1.0f, fSelY = -1.0f, fSelZ = 0.0f,
-	fBallSpeed = 1.0f, fBallRotation = 60.0f;
+	fSelX = -1.0f, fSelY = -1.0f, fSelZ = 0.0f;
 int nMouseX = 0, nMouseY = 0;
 volatile int nNewWinX = -1, nNewWinY = -1, nBallN = 6;
 volatile float fBallR = 0.5f;
@@ -299,6 +302,8 @@ void Update()
 							bNewMouse = true;
 						}
 					}
+					if( mouse.wheel )
+						fPlaneZ += 0.1f * mouse.wheel;
 				}
 				break;
 			}
@@ -321,6 +326,9 @@ void Update()
 						break;
 					case VK_F6:
 						bSortDraw = !bSortDraw;
+						break;
+					case VK_F7:
+						fPlaneZ = fPlaneZDef;
 						break;
 					case VK_LEFT:
 						if(keyboard.alt && fBallR > 0.1f)
@@ -734,13 +742,9 @@ void Init()
 	ReadImage(imgParticle, "art/star.tga");
 	ReadImage(imgWood, "art/crate.tga");
 
-	texBall.minFilter = GL_LINEAR_MIPMAP_LINEAR;
-	texBall.magFilter = GL_LINEAR;
-	texBall.mipmapped = TRUE;
-
-	texWood.minFilter = GL_LINEAR_MIPMAP_LINEAR;
-	texWood.magFilter = GL_LINEAR;
-	texWood.mipmapped = TRUE;
+	texParticle.minFilter = GL_NEAREST;
+	texParticle.magFilter = GL_NEAREST;
+	texParticle.mipmapped = FALSE;
 
 	fd.m_strFileDir = "Data";
 	fd.AddFilter("txt", "Text files");

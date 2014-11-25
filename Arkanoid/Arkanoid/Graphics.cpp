@@ -172,7 +172,7 @@ ErrorCode Texture::Create(const Image &image)
 	{
 		gluBuild2DMipmaps(
 			GL_TEXTURE_2D,	// 2D image
-			childs,			// number of color childs
+			components,	    // number of color components
 			width,			// width
 			height,			// height
 			format,			// color model
@@ -184,7 +184,7 @@ ErrorCode Texture::Create(const Image &image)
 		glTexImage2D(
 			GL_TEXTURE_2D,	// 2D image
 			levelDetail,	// detail level
-			childs,			// number of color childs
+			components,		// number of color components
 			width,			// width
 			height,			// height
 			border,			// border
