@@ -61,7 +61,7 @@ GLenum uFogMode = GL_EXP;
 GLenum uFogQuality = GL_DONT_CARE;
 BOOL bKeys[256] = {0};
 std::deque<Input> dInput;
-CriticalSection csInput, csShared;
+CriticalSection csInput;
 Timer timer;
 DisplayList dlBall, dlBrickBall, dlBrickCube;
 Transform transform;
@@ -76,11 +76,11 @@ float
 	fBallX0 = 0, fBallY0 = 0,
 	fSelX = -1.0f, fSelY = -1.0f, fSelZ = 0.0f;
 int nMouseX = 0, nMouseY = 0;
-volatile int nNewWinX = -1, nNewWinY = -1, nBallN = 6;
-volatile float fBallR = 0.5f;
-volatile bool bNewBall = false, bNewMouse = false;
+int nNewWinX = -1, nNewWinY = -1, nBallN = 6;
+float fBallR = 0.5f;
+bool bNewBall = false, bNewMouse = false;
 Font font("Times New Roman", -16), smallFont("Courier New", -12);
-Event evInput;
+Event evTask;
 Panel c_pEditor, c_pGame, c_pControls, c_pParticles;
 Label c_lPath;
 Button c_bExit, c_bLoad, c_bSave;
@@ -290,7 +290,6 @@ void Update()
 			{
 				const Mouse &mouse = input.mouse;
 				{
-					Lock lock(csShared);
 					int x = mouse.x;
 					int y = nWinHeight - mouse.y;
 					if( !c_container._OnMousePos(x, y, mouse.lbutton) )
@@ -333,7 +332,6 @@ void Update()
 					case VK_LEFT:
 						if(keyboard.alt && fBallR > 0.1f)
 						{
-							Lock lock(csShared);
 							fBallR -= 0.1f;
 							bNewBall = true;
 						}
@@ -341,7 +339,6 @@ void Update()
 					case VK_RIGHT:
 						if(keyboard.alt && fBallR < 10.0f)
 						{
-							Lock lock(csShared);
 							fBallR += 0.1f;
 							bNewBall = true;
 						}
@@ -349,7 +346,6 @@ void Update()
 					case VK_UP:
 						if(keyboard.alt && nBallN < 10000)
 						{
-							Lock lock(csShared);
 							nBallN++;
 							bNewBall = true;
 						}
@@ -357,7 +353,6 @@ void Update()
 					case VK_DOWN:
 						if(keyboard.alt && nBallN > 2)
 						{
-							Lock lock(csShared);
 							nBallN--;
 							bNewBall = true;
 						}
@@ -411,7 +406,7 @@ void Draw2D()
 	}
 }
 
-void ScreenToScene(int x0, int y0, float &x, float &y, float &z)
+void ScreenToScene(const int &x0, const int &y0, float &x, float &y, float &z)
 {
 	double dX0, dY0, dDepthZ, dX, dY, dZ;
 	transform.Update();
@@ -429,16 +424,8 @@ void Draw3D()
 	bool bUpdateMouse = bNewMouse;
 	bNewMouse = false;
 
-	if( nNewWinY >= 0 )
-	{
-		int nWinX, nWinY;
-		{
-			Lock lock(csShared);
-			nWinX = nNewWinX;
-			nWinY = nNewWinY;
-		}
-		ScreenToScene(nWinX, nWinY, fSelX, fSelY, fSelZ);
-	}
+	if( bUpdateMouse )
+		ScreenToScene(nNewWinX, nNewWinY, fSelX, fSelY, fSelZ);
 
 	GLfloat pGlowPos[] = {fSelX, fSelY, fSelZ, 1.0f};
 	glLightfv(GL_LIGHT2, GL_POSITION, pGlowPos);
@@ -522,7 +509,6 @@ void Draw3D()
 	{
 		if( !dlBall || bNewBall )
 		{
-			Lock lock(csShared);
 			CompileDisplayList cds(dlBall);
 			DrawSphere(fBallR, nBallN);
 			bNewBall = false;
@@ -1116,7 +1102,6 @@ void OnNewInput(const Input &input)
 {
 	Lock lock(csInput);
 	dInput.push_back(input);
-	evInput.Signal();
 }
 
 LRESULT CALLBACK WinProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -1241,16 +1226,20 @@ LRESULT CALLBACK WinProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	return DefWindowProc(hWnd, uMsg, wParam, lParam);
 }
 
-static DWORD WINAPI UpdateProc(void * param)
+void Task()
+{
+}
+
+static DWORD WINAPI TaskProc(void * param)
 {
 	HANDLE hThread = GetCurrentThread();
 	SetThreadPriority(hThread, THREAD_PRIORITY_NORMAL);
-	SetThreadName("Update");
+	SetThreadName("Task");
 
 	while (bIsProgramLooping)
 	{
-		Update();
-		evInput.Wait(30);
+		Task();
+		evTask.Wait();
 	}
 
 	CloseHandle(hThread);
@@ -1290,13 +1279,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLin
 
 	Init();
 
-	/*
-	if( !CreateThread(NULL, 0, UpdateProc, NULL, 0, NULL) )
+	if( !CreateThread(NULL, 0, TaskProc, NULL, 0, NULL) )
 	{
-		Message("Failed to start the update thread!");
+		Message("Failed to start the task thread!");
 		return -1;
 	}
-	*/
 
 	while (bIsProgramLooping)
 	{
@@ -1316,7 +1303,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLin
 					{
 						if (msg.message == WM_QUIT)
 						{
-							evInput.Signal();
+							evTask.Signal();
 							break;
 						}
 						TranslateMessage(&msg);
