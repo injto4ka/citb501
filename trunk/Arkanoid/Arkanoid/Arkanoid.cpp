@@ -650,8 +650,8 @@ void Draw3D()
 				Brick &brick = bricks[i];
 				if( !brick.type || nLastCollision == i )
 					continue;
-				float dxc = fCentertX - brick.x, dyc = fCentertY - brick.y, d2 = dxc * dxc + dyc * dyc;
-				if( d2 > fMinDist2 || dx * (brick.x - fBallX) + dy * (brick.y - fBallY) < 0 )
+				float dxc = fCentertX - brick.x, dyc = fCentertY - brick.y;
+				if( dxc * dxc + dyc * dyc > fMinDist2 || dx * (brick.x - fBallX) + dy * (brick.y - fBallY) < 0 )
 					continue;
 				float colk;
 				switch( brick.type )
