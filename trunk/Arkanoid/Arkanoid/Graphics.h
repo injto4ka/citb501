@@ -63,13 +63,17 @@ void CreateFog(GLfloat start, GLfloat end, GLfloat *color, GLfloat density, GLui
 GLvoid DrawSphere(float R, int nDivs = 6);
 void DrawCube(float side);
 
-GLvoid DrawFrame(float x, float y, float z, float r = 1.0f, float w = 1);
-GLvoid DrawLine(float x1, float y1, float z1, 
-				float x2, float y2, float z2,
-				int c = 0xffffffff, float w = 1);
-GLvoid DrawLine(float x1, float y1, 
-				float x2, float y2,
-				int c = 0xffffffff, float w = 1);
+GLvoid DrawFrame(
+		float x, float y, float z,
+		float r = 1.0f, float w = 1);
+GLvoid DrawLine3D(
+		float x1, float y1, float z1, 
+		float x2, float y2, float z2,
+		int c = 0xffffffff, float w = 1);
+GLvoid DrawLine2D(
+		float x1, float y1, 
+		float x2, float y2,
+		int c = 0xffffffff, float w = 1);
 void DrawBox(
 		float left, float top,
 		float width, float height,

@@ -8,6 +8,7 @@
 #include "utils.h"
 #include "graphics.h"
 #include "ui.h"
+#include "math.h"
 
 #pragma comment( lib, "opengl32.lib" )				// Search For OpenGL32.lib While Linking
 #pragma comment( lib, "glu32.lib" )					// Search For GLu32.lib While Linking
@@ -70,6 +71,7 @@ const float
 	fParPlaneZ = -20.0f,
 	fBallSpeed = 2.0f,
 	fBallRotation = 60.0f,
+	fBallR = 0.2f,
 	fBallXStart = 0, fBallYStart = -2.0f, fBallZStart = 0;
 float
 	fPlaneZ = fPlaneZDef,
@@ -80,7 +82,6 @@ float
 	fSelX = -1.0f, fSelY = -1.0f, fSelZ = 0.0f;
 int nMouseX = 0, nMouseY = 0;
 int nNewWinX = -1, nNewWinY = -1, nBallN = 6;
-float fBallR = 0.2f;
 bool bNewBall = false, bNewMouse = false;
 Font font("Times New Roman", -16), smallFont("Courier New", -12);
 Event evTask;
@@ -92,7 +93,7 @@ SliderBar c_sFriction, c_sSlowdown, c_sBrick;
 Control c_container;
 std::deque<float> lfSelIntervals;
 const float fTimeSumMax = 3;
-float fLastFrameTime = 0, fSelInterval = 0;
+float fLastFrameTime = 0, fSelInterval = 0, fSimTimeCoef = 1.0f;
 bool bGeometry = false;
 #define MAX_PARTICLES 1200
 float
@@ -142,6 +143,8 @@ const float
 	fBrickSize = fLevelWidth / (LEVEL_WIDTH - 1) - fBrickMargin,
 	fBrickRadiusBall = 0.85f * fBrickSize / 2,
 	fBrickRadiusCube = fBrickSize / 2,
+	fMinDistBase = fBallR + 0.71f * fBrickSize,
+	fMinDistBall = fBallR + fBrickRadiusBall,
 	fLevelHeight = (LEVEL_HEIGHT - 1) * (fBrickSize + fBrickMargin),
 	fLevelOffsetX = 0,
 	fLevelOffsetY = 0.5f,
@@ -158,6 +161,17 @@ float fJumpEffectZ = 0;
 int nSelectedBrick = -1;
 std::string strCurrentLevel;
 bool bSortDraw = true;
+
+#define rc fBrickRadiusCube
+#define rb fBallR
+const float fBoxSeg[4][4][2] = {
+	{ { 0,-1}, { -rc,      -rc - rb }, {  rc,      -rc - rb }, { -rc, -rc } }, // bottom side
+	{ { 1, 0}, {  rc + rb, -rc      }, {  rc + rb,  rc      }, {  rc, -rc } }, // right side
+	{ { 0, 1}, { -rc,       rc + rb }, {  rc,       rc + rb }, {  rc,  rc } }, // top side
+	{ {-1, 0}, { -rc - rb, -rc      }, { -rc - rb,  rc      }, { -rc,  rc } }, // left side
+};
+#undef rc
+#undef rb
 
 //=========================================================================================================
 
@@ -337,20 +351,6 @@ void Update()
 					case VK_F7:
 						fPlaneZ = fPlaneZDef;
 						break;
-					case VK_LEFT:
-						if(keyboard.alt && fBallR > 0.1f)
-						{
-							fBallR -= 0.1f;
-							bNewBall = true;
-						}
-						break;
-					case VK_RIGHT:
-						if(keyboard.alt && fBallR < 10.0f)
-						{
-							fBallR += 0.1f;
-							bNewBall = true;
-						}
-						break;
 					case VK_UP:
 						if(keyboard.alt && nBallN < 10000)
 						{
@@ -364,6 +364,17 @@ void Update()
 							nBallN--;
 							bNewBall = true;
 						}
+						break;
+					case VK_OEM_MINUS:
+					case VK_SUBTRACT:
+						fSimTimeCoef /= 1.5f;
+						break;
+					case VK_OEM_PLUS:
+					case VK_ADD:
+						fSimTimeCoef *= 1.5f;
+						break;
+					case VK_MULTIPLY:
+						fSimTimeCoef = 1;
 						break;
 					}
 				}
@@ -450,7 +461,7 @@ void Draw3D()
 	}
 
 	float time = timer.Time();
-	float dt = time - fLastDrawTime;
+	float dt = (time - fLastDrawTime) * fSimTimeCoef;
 	fLastDrawTime = time;
 	
 	if( !dlBrickBall )
@@ -607,9 +618,99 @@ void Draw3D()
 		}
 
 		fBallA += fBallRotation * dt;
-		float d = fBallSpeed * dt, dx = fBallDirX * d, dy = fBallDirY * d;
-		fBallX += dx;
-		fBallY += dy;
+
+		float d = fBallSpeed * dt, fNewBallX, fNewBallY;
+		int nLastCollision = -1;
+		for(;;)
+		{
+			float dx = fBallDirX * d, dy = fBallDirY * d;
+			float fCentertX = fBallX + 0.5f * dx, fCentertY = fBallY + 0.5f * dy;
+			fNewBallX = fBallX + dx;
+			fNewBallY = fBallY + dy;
+			float fMinDist = fMinDistBase + 0.5f * d, fMinDist2 = fMinDist * fMinDist;
+			bool bCollision = false;
+			for(int i = 0; i < nBrickCount; i++)
+			{
+				Brick &brick = bricks[i];
+				if( !brick.type || dx * (brick.x - fBallX) + dy * (brick.y - fBallY) < 0 || nLastCollision == i )
+					continue;
+				// DrawLine2D(brick.x, brick.y, fBallX, fBallY, 0xff00ffff);
+				float dxc = fCentertX - brick.x, dyc = fCentertY - brick.y, d2 = dxc * dxc + dyc * dyc;
+				if( d2 > fMinDist2 || d2 == 0 )
+					continue;
+				float colk;
+				switch( brick.type )
+				{
+				case 1:
+					if( IntersectSegmentCircle2D(fBallX, fBallY, fNewBallX, fNewBallY, brick.x, brick.y, fMinDistBall, &colk) )
+					{
+						bCollision = true;
+						brick.type = 0;
+					}
+					break;
+				case 2:
+					{
+						const float xc = brick.x, yc = brick.y;
+						// first test collision with each box side
+						for(int j = 0; j < 4; j++)
+						{
+							auto fSeg = fBoxSeg[j];
+							if( dx * fSeg[0][0] + dy * fSeg[0][1] > 0 )
+								continue;
+							float
+								fSegX1 = xc + fSeg[1][0],
+								fSegY1 = yc + fSeg[1][1],
+								fSegX2 = xc + fSeg[2][0],
+								fSegY2 = yc + fSeg[2][1];
+							if( IntersectSegmentSegment2D(
+								fBallX, fBallY, fNewBallX, fNewBallY,
+								fSegX1, fSegY1, fSegX2, fSegY2,
+								&colk) )
+							{
+								bCollision = true;
+								brick.type = 0;
+								break;
+							}
+						}
+						// if no side is hit, test collision with each box corner
+						if( !bCollision )
+						{
+							for(int j = 0; j < 4; j++)
+							{
+								auto fCenter = fBoxSeg[j][3];
+								if( IntersectSegmentCircle2D(
+									fBallX, fBallY, fNewBallX, fNewBallY,
+									xc + fCenter[0], yc + fCenter[1],
+									fBallR, &colk) )
+								{
+									bCollision = true;
+									brick.type = 0;
+									break;
+								}
+							}
+						}
+					}
+					break;
+				}
+				if( bCollision )
+				{
+					nLastCollision = i;
+					fBallX += dx * colk;
+					fBallY += dy * colk;
+					float xn = fBallX - brick.x, yn = fBallY - brick.y;
+					float dot = fBallDirX * xn + fBallDirY * yn;
+					float len = -2 * dot / (xn * xn + yn * yn);
+					SetNewDir(fBallDirX + len * xn, fBallDirY + len * yn);
+					d *= 1 - colk;
+					break;
+				}
+			}
+			if( !bCollision )
+				break;
+		}
+		
+		fBallX = fNewBallX;
+		fBallY = fNewBallY;
 		if( fBallDirX < 0 && fBallX - fBallR <= -fLevelSpanX || fBallDirX > 0 && fBallX + fBallR >= fLevelSpanX  )
 			fBallDirX = -fBallDirX;
 		if( fBallDirY < 0 && fBallY - fBallR <= -fLevelSpanY || fBallDirY > 0 && fBallY + fBallR >= fLevelSpanY  )
@@ -617,56 +718,8 @@ void Draw3D()
 
 		if( bInterface )
 		{
-			DrawLine(fSelX, fSelY, fSelZ, fBallX, fBallY, fBallZ, 0xff00ffff);
+			DrawLine3D(fSelX, fSelY, fSelZ, fBallX, fBallY, fBallZ, 0xff00ffff);
 			DrawFrame(fSelX, fSelY, fSelZ);
-		}
-
-		float fMinDist = fBallR + fBrickSize / 2, fMinDist2 = fMinDist * fMinDist;
-		float fMinDistBall = fBallR + fBrickRadiusBall, fMinDistBall2 = fMinDistBall * fMinDistBall;
-		for(int i = 0; i < nBrickCount; i++)
-		{
-			Brick &brick = bricks[i];
-			if( !brick.type )
-				continue;
-			float dx = fBallX - brick.x, dy = fBallY - brick.y, d2 = dx * dx + dy * dy;
-			if( fMinDist2 < d2 )
-				continue;
-			float normalx = 0, normaly = 0, normal2 = 0;
-			bool bCollision = false;
-			switch( brick.type )
-			{
-			case 1:
-				if( fMinDistBall2 >= d2 )
-				{
-					bCollision = true;
-					brick.type = 0;
-					if( d2 > 0 )
-					{
-						normalx = dx;
-						normaly = dy;
-						normal2 = d2;
-					}
-				}
-				break;
-			case 2:
-				brick.type = 0;
-				break;
-			}
-			if( bCollision )
-			{
-				if( !normal2 )
-				{
-					fBallDirX = -fBallDirX;
-					fBallDirY = -fBallDirY;
-				}
-				else
-				{
-					float dot = fBallDirX * normalx + fBallDirY * normaly;
-					float len = -2 * dot / normal2;
-					SetNewDir(fBallDirX + len * normalx, fBallDirY + len * normaly);
-				}
-				break;
-			}
 		}
 
 		glPushMatrix();
