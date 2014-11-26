@@ -48,16 +48,6 @@ void CreateLight(GLenum id, GLfloat *position, GLfloat *ambient, GLfloat *diffus
 	glEnable(id);                                   // Enable Light One
 }
 
-void CreateFog(GLfloat start, GLfloat end, GLfloat *color, GLfloat density, GLuint func, GLenum quality)
-{
-	glFogi(GL_FOG_MODE, func);
-	glFogf(GL_FOG_DENSITY, density);
-	glFogf(GL_FOG_START, start);
-	glFogf(GL_FOG_END, end); 
-	glFogfv(GL_FOG_COLOR, color);
-	glHint(GL_FOG_HINT, quality);
-}
-
 BOOL Image::SetSize(int nNewWidth, int nNewHeight, int nNewComp)
 {
 	if(nNewWidth <= 0 || nNewHeight <= 0 ||

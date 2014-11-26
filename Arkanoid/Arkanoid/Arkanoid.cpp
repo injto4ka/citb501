@@ -45,8 +45,8 @@ BOOL bIsProgramLooping = TRUE;
 BOOL bCreateFullScreen = FALSE;
 LONG nDisplayWidth = 800;
 LONG nDisplayHeight = 600; 
-Image imgBall2D, imgBall3D, imgParticle, imgWood, imgStation, imgElectronics, imgSmile;
-Texture texBall, texParticle, texWood, texStation, texElectronics, texSmile;
+Image imgBall2D, imgBall3D, imgParticle, imgWood, imgStation, imgElectronics, imgSmile, imgLava;
+Texture texBall, texParticle, texWood, texStation, texElectronics, texSmile, texLava;
 GLfloat
 	pLightAmbient[]= { 0.5f, 0.5f, 0.5f, 1.0f }, // Ambient Light Values
 	pLightDiffuse[]= { 1.0f, 1.0f, 1.0f, 1.0f }, // Diffuse Light Values
@@ -54,22 +54,19 @@ GLfloat
 	pLightGlowAttenuate[] = {0.25f, 1.0f, 2.0f},
 	pLightPosition[]= { 0.0f, 0.0f, 0.0f, 1.0f }, // Light Position
 	pFogColor[]= {0.0f, 0.0f, 0.0f, 1.0f}; // Fog Color
-float fFogStart = 0.0f;
-float fFogEnd = 1.0f;
 float fFogDensity = 0.1f;
 float fLastDrawTime = 0;
-GLenum uFogMode = GL_EXP;
 GLenum uFogQuality = GL_DONT_CARE;
 BOOL bKeys[256] = {0};
 std::deque<Input> dInput;
 CriticalSection csInput;
 Timer timer;
-DisplayList dlBall, dlBrickBall, dlBrickCube, dlBack, dlSides;
+DisplayList dlBall, dlBrickBall, dlBrickCube, dlBack, dlSides, dlBottom;
 Transform transform;
 const float
-	fPlaneZDef = -5.0f,
+	fPlaneZDef = -4.8f,
 	fParPlaneZ = -20.0f,
-	fBallSpeed = 2.0f,
+	fBallSpeed = 1.5f,
 	fBallRotation = 60.0f,
 	fBallR = 0.2f,
 	fBallXStart = 0, fBallYStart = -2.0f, fBallZStart = 0;
@@ -505,18 +502,26 @@ void Draw3D()
 		glTexCoord2f(0.0f, 1.0f); glVertex3f(spanx, spany, +depth);
 		glTexCoord2f(1.0f, 1.0f); glVertex3f(spanx, spany, -depth);
 		glTexCoord2f(1.0f, 0.0f); glVertex3f(spanx, -spany, -depth);
-		// bottom side
-		glNormal3f(0.0f, 1.0f, 0.0f);
-		glTexCoord2f(0.0f, 0.0f); glVertex3f(-spanx, -spany, +depth);
-		glTexCoord2f(0.0f, 1.0f); glVertex3f(spanx, -spany, +depth);
-		glTexCoord2f(1.0f, 1.0f); glVertex3f(spanx, -spany, -depth);
-		glTexCoord2f(1.0f, 0.0f); glVertex3f(-spanx, -spany, -depth);
 		// top side
 		glNormal3f(0.0f, -1.0f, 0.0f);
 		glTexCoord2f(1.0f, 1.0f); glVertex3f(-spanx, spany, +depth);
 		glTexCoord2f(0.0f, 1.0f); glVertex3f(spanx, spany, +depth);
 		glTexCoord2f(0.0f, 0.0f); glVertex3f(spanx, spany, -depth);
 		glTexCoord2f(1.0f, 0.0f); glVertex3f(-spanx, spany, -depth);
+		glEnd();
+	}
+
+	if( !dlBottom )
+	{
+		CompileDisplayList cds(dlBottom);
+		const float depth = fLevelDepth, spanx = fLevelSpanX, spany = fLevelSpanY;
+		glBegin(GL_QUADS);
+		// bottom side
+		glNormal3f(0.0f, 1.0f, 0.0f);
+		glTexCoord2f(0.0f, 0.0f); glVertex3f(-spanx, -spany, +depth);
+		glTexCoord2f(1.0f, 0.0f); glVertex3f(spanx, -spany, +depth);
+		glTexCoord2f(1.0f, 1.0f); glVertex3f(spanx, -spany, -depth);
+		glTexCoord2f(0.0f, 1.0f); glVertex3f(-spanx, -spany, -depth);
 		glEnd();
 	}
 
@@ -527,6 +532,8 @@ void Draw3D()
 	dlBack.Execute();
 	texElectronics.Bind();
 	dlSides.Execute();
+	texLava.Bind();
+	dlBottom.Execute();
 	glPopAttrib();
 
 	glPushAttrib(GL_ENABLE_BIT);
@@ -911,6 +918,7 @@ void Init()
 	ReadImage(imgStation, "art/station.tga");
 	ReadImage(imgElectronics, "art/electronics.tga");
 	ReadImage(imgSmile, "art/smile.tga");
+	ReadImage(imgLava, "art/lava.tga");
 
 	texParticle.minFilter = GL_NEAREST;
 	texParticle.magFilter = GL_NEAREST;
@@ -923,6 +931,10 @@ void Init()
 	texElectronics.minFilter = GL_LINEAR;
 	texElectronics.magFilter = GL_LINEAR;
 	texElectronics.mipmapped = FALSE;
+	
+	texLava.minFilter = GL_LINEAR;
+	texLava.magFilter = GL_LINEAR;
+	texLava.mipmapped = FALSE;
 
 	fd.m_strFileDir = "Data";
 	fd.AddFilter("txt", "Text files");
@@ -1115,7 +1127,10 @@ BOOL glCreate()
 	glEnable(GL_LIGHTING);
 	glDisable(GL_COLOR_MATERIAL);
 
-	CreateFog(fFogStart, fFogEnd, pFogColor, fFogDensity, uFogMode, uFogQuality);
+	glFogi(GL_FOG_MODE, GL_EXP);
+	glFogf(GL_FOG_DENSITY, fFogDensity);
+	glFogfv(GL_FOG_COLOR, pFogColor);
+	glHint(GL_FOG_HINT, uFogQuality);
 
 	// Set the clear color
 	glClearColor(	pFogColor[RED], 
@@ -1150,6 +1165,10 @@ BOOL glCreate()
 		Print("Error creating texture: %s", err);
 	
 	err = texElectronics.Create(imgElectronics);
+	if( err )
+		Print("Error creating texture: %s", err);
+	
+	err = texLava.Create(imgLava);
 	if( err )
 		Print("Error creating texture: %s", err);
 	
