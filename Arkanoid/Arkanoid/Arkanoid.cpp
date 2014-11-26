@@ -648,11 +648,10 @@ void Draw3D()
 			for(int i = 0; i < nBrickCount; i++)
 			{
 				Brick &brick = bricks[i];
-				if( !brick.type || dx * (brick.x - fBallX) + dy * (brick.y - fBallY) < 0 || nLastCollision == i )
+				if( !brick.type || nLastCollision == i )
 					continue;
-				// DrawLine2D(brick.x, brick.y, fBallX, fBallY, 0xff00ffff);
 				float dxc = fCentertX - brick.x, dyc = fCentertY - brick.y, d2 = dxc * dxc + dyc * dyc;
-				if( d2 > fMinDist2 || d2 == 0 )
+				if( d2 > fMinDist2 || dx * (brick.x - fBallX) + dy * (brick.y - fBallY) < 0 )
 					continue;
 				float colk;
 				switch( brick.type )
