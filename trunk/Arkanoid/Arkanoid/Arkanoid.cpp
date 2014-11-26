@@ -286,6 +286,15 @@ BOOL ReadImage(Image &image, const char *pchFilename)
 	return FALSE;
 }
 
+BOOL CreateTexture(Texture &tex, const Image &img)
+{
+	ErrorCode err = tex.Create(img);
+	if( !err )
+		return TRUE;
+	Print("Error creating texture: %s", err);
+	return FALSE;
+}
+
 void Update()
 {
 	while( dInput.size() > 0 )
@@ -911,14 +920,14 @@ bool LoadNextLevel()
 
 void Init()
 {
-	ReadImage(imgBall2D, "art/ball2d.tga");
-	ReadImage(imgBall3D, "art/ball3d.tga");
-	ReadImage(imgParticle, "art/star.tga");
-	ReadImage(imgWood, "art/crate.tga");
-	ReadImage(imgStation, "art/station.tga");
+	ReadImage(imgBall2D,      "art/ball2d.tga");
+	ReadImage(imgBall3D,      "art/ball3d.tga");
+	ReadImage(imgParticle,    "art/star.tga");
+	ReadImage(imgWood,        "art/crate.tga");
+	ReadImage(imgStation,     "art/station.tga");
 	ReadImage(imgElectronics, "art/electronics.tga");
-	ReadImage(imgSmile, "art/smile.tga");
-	ReadImage(imgLava, "art/lava.tga");
+	ReadImage(imgSmile,       "art/smile.tga");
+	ReadImage(imgLava,        "art/lava.tga");
 
 	texParticle.minFilter = GL_NEAREST;
 	texParticle.magFilter = GL_NEAREST;
@@ -1148,33 +1157,13 @@ BOOL glCreate()
 	if( err )
 		Print("Font creation error: %s\n", err);
 
-	err = texBall.Create(imgBall3D);
-	if( err )
-		Print("Error creating ball texBall: %s", err);
-
-	err = texParticle.Create(imgParticle);
-	if( err )
-		Print("Error creating particle texBall: %s", err);
-	
-	err = texWood.Create(imgWood);
-	if( err )
-		Print("Error creating texture: %s", err);
-	
-	err = texStation.Create(imgStation);
-	if( err )
-		Print("Error creating texture: %s", err);
-	
-	err = texElectronics.Create(imgElectronics);
-	if( err )
-		Print("Error creating texture: %s", err);
-	
-	err = texLava.Create(imgLava);
-	if( err )
-		Print("Error creating texture: %s", err);
-	
-	err = texSmile.Create(imgSmile);
-	if( err )
-		Print("Error creating texture: %s", err);
+	CreateTexture(texBall,        imgBall3D);
+	CreateTexture(texParticle,    imgParticle);
+	CreateTexture(texWood,        imgWood);
+	CreateTexture(texStation,     imgStation);
+	CreateTexture(texElectronics, imgElectronics);
+	CreateTexture(texSmile,       imgSmile);
+	CreateTexture(texLava,        imgLava);
 
 	fd.m_hWnd = hWnd;
 
@@ -1188,6 +1177,7 @@ void glDestroy()
 	dlBrickCube.Destroy();
 	dlBack.Destroy();
 	dlSides.Destroy();
+	dlBottom.Destroy();
 }
 
 //================================================================================================================
