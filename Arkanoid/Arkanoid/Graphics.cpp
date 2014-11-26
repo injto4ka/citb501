@@ -217,9 +217,10 @@ ErrorCode Texture::Bind() const
 	return glErrorToStr();
 }
 
-GLvoid DrawLine(float x1, float y1, float z1, 
-				float x2, float y2, float z2,
-				int c, float w)
+GLvoid DrawLine3D(
+	float x1, float y1, float z1, 
+	float x2, float y2, float z2,
+	int c, float w)
 {
 	glPushAttrib(GL_ENABLE_BIT | GL_LINE_BIT | GL_HINT_BIT | GL_CURRENT_BIT);
 	glDisable(GL_LIGHTING);
@@ -237,9 +238,10 @@ GLvoid DrawLine(float x1, float y1, float z1,
 	glPopAttrib();
 }
 
-GLvoid DrawLine(float x1, float y1,
-				float x2, float y2,
-				int c, float w)
+GLvoid DrawLine2D(
+	float x1, float y1,
+	float x2, float y2,
+	int c, float w)
 {
 	glPushAttrib(GL_ENABLE_BIT | GL_LINE_BIT | GL_HINT_BIT | GL_CURRENT_BIT);
 	glDisable(GL_LIGHTING);
