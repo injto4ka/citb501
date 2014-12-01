@@ -38,6 +38,7 @@ bool IntersectSegmentCircle2D(
 		dx = x1 - xc, dy = y1 - yc,
 		a = u * u + v * v, b = u * dx + v * dy, c = dx * dx + dy * dy - rc * rc,
 		b2 = b * b, d = b2 - a * c;
+	ASSERT(a != 0);
 	if( d < 0 )
 		return false; // no intersection
 	float ab = a + b, ab2 = ab * ab;

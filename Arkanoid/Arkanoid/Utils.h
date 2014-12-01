@@ -3,8 +3,15 @@
 
 #include <windows.h>			// Windows API Definitions
 #include <stdio.h>
+#include <assert.h>
 #include <list>
 #include <string>
+
+#ifdef _DEBUG
+#	define ASSERT(_Expression) assert(_Expression)
+#else
+#	define ASSERT(_Expression) ((void)0)
+#endif
 
 #pragma warning(disable:4996)
 
