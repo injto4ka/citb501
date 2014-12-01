@@ -54,3 +54,26 @@ bool IntersectSegmentCircle2D(
 	}
 	return false; // intersection outside the segment
 }
+
+float DistSegmentPoint2D2(
+	float x1, float y1,
+	float x2, float y2,
+	float xc, float yc,
+	float *k)
+{
+	float
+		u = x2 - x1, v = y2 - y1,
+		dx = x1 - xc, dy = y1 - yc,
+		a = u * u + v * v, b = u * dx + v * dy, c = dx * dx + dy * dy;
+	if( !a )
+		return -1;
+	float t;
+	if( -b < 0 )
+		t = 0;
+	else if( -b > a )
+		t = 1;
+	else
+		t = -b / a;
+	if( k ) *k = t;
+	return ( a * t + 2 * b ) * t + c;
+}
