@@ -68,7 +68,11 @@ GLvoid DrawFrame(
 GLvoid DrawLine3D(
 		float x1, float y1, float z1, 
 		float x2, float y2, float z2,
-		int c = 0xffffffff, float w = 1);
+		int c1 = 0xffffffff, int c2 = 0, float w = 1);
+GLvoid DrawCircle3D(
+		float xc, float yc, float zc, float radius, int color = 0xffffffff,
+		float xn = 0, float yn = 0, float zn = 1,
+		float line = 1, int divs = 12);
 GLvoid DrawLine2D(
 		float x1, float y1, 
 		float x2, float y2,
@@ -260,5 +264,24 @@ public:
 		m_list.End();
 	}
 };
+
+#ifdef _DEBUG
+void DbgDraw();
+void DbgClear();
+void DbgAddVector(
+	float x1, float y1, float z1,
+	float x2, float y2, float z2,
+	int color1 = 0xffffffff, int color2 = 0, float width = 1.0f);
+void DbgAddCircle(
+	float xc, float yc, float zc,
+	float radius, int color = 0xffffffff,
+	float xn = 0.0f, float yn = 0.0f, float zn = 1.0f,
+	float width = 1.0f, int divs = 12);
+#else
+#	define DbgDraw() ((void)0)
+#	define DbgClear() ((void)0)
+#	define DbgAddVector(...) ((void)0)
+#	define DbgAddCircle(...) ((void)0)
+#endif _DEBUG
 
 #endif __GRAPHICS_H_

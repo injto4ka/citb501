@@ -1,4 +1,7 @@
 #include "graphics.h"
+#include "math.h"
+
+#include <algorithm>
 
 ErrorCode glErrorToStr()
 {
@@ -210,7 +213,7 @@ ErrorCode Texture::Bind() const
 GLvoid DrawLine3D(
 	float x1, float y1, float z1, 
 	float x2, float y2, float z2,
-	int c, float w)
+	int c1, int c2, float w)
 {
 	glPushAttrib(GL_ENABLE_BIT | GL_LINE_BIT | GL_HINT_BIT | GL_CURRENT_BIT);
 	glDisable(GL_LIGHTING);
@@ -220,8 +223,11 @@ GLvoid DrawLine3D(
 	glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
 
 	glBegin(GL_LINES);
-		SetColor(c);
+		if( c1 )
+			SetColor(c1);
 		glVertex3f( x1, y1, z1);
+		if( c2 )
+			SetColor(c2);
 		glVertex3f( x2, y2, z2);
 	glEnd();
 
@@ -392,6 +398,36 @@ GLvoid DrawSphere(float R, int nDivs)
 	glEnd();
 }
 
+GLvoid DrawCircle3D(
+		float xc, float yc, float zc, float radius, int color,
+		float xn, float yn, float zn,
+		float line, int divs)
+{
+	glPushMatrix();
+	glPushAttrib(GL_LINE_BIT | GL_CURRENT_BIT);
+	if(color)
+		SetColor(color);
+	if(line)
+		glLineWidth(line);
+	glTranslatef(xc, yc, zc);
+	glBegin(GL_LINE_STRIP);
+
+	Quaternion q(Point(0, 0, 1), 360.0f / divs, true);
+	glVertex3f( radius, 0, 0 );
+
+	Point pt(radius, 0, 0);
+	for(int i = 1; i < divs; i++)
+	{
+		pt = q * pt;
+		glVertex3f( pt.x, pt.y, pt.z );
+	}
+	glVertex3f( radius, 0, 0 );
+
+	glEnd();
+	glPopAttrib();
+	glPopMatrix();
+}
+
 void DrawBox(
 		float left, float top,
 		float width, float height,
@@ -510,3 +546,125 @@ void DrawCube(float side)
 
 	glEnd();
 }
+
+#ifdef _DEBUG
+struct DbgObject
+{
+	virtual void Draw() const = 0;
+	virtual int Type() const = 0;
+	enum Types {
+		DBG_VECTOR,
+		DBG_CIRCLE,
+		DBG_COUNT,
+	};
+	bool operator < (const DbgObject& other) const { return Type() < other.Type(); }
+	static bool Compare(const DbgObject* a, const DbgObject* b) { return a->Type() < b->Type(); }
+};
+static std::vector<const DbgObject *> s_vDbgObjects;
+static CriticalSection s_csDbgObjects;
+void DbgAdd(const DbgObject *obj)
+{
+	Lock lock(s_csDbgObjects);
+	s_vDbgObjects.push_back(obj);
+	std::sort(s_vDbgObjects.begin(), s_vDbgObjects.end(), DbgObject::Compare);
+}
+void DbgDraw()
+{
+	Lock lock(s_csDbgObjects);
+	glPushAttrib(GL_ENABLE_BIT);
+	glDisable(GL_LIGHTING);
+	glDisable(GL_TEXTURE_2D);
+	for(size_t i = 0; i < s_vDbgObjects.size(); i++)
+		s_vDbgObjects[i]->Draw();
+	glPopAttrib();
+}
+void DbgClear()
+{
+	Lock lock(s_csDbgObjects);
+	for(size_t i = 0; i < s_vDbgObjects.size(); i++)
+		delete s_vDbgObjects[i];
+	s_vDbgObjects.clear();
+}
+
+struct DbgVector: DbgObject
+{
+	float
+		x1, y1, z1,
+		x2, y2, z2,
+		width;
+	int color1, color2;
+	DbgVector(
+		float x1, float y1, float z1,
+		float x2, float y2, float z2,
+		int color1, int color2, float width):
+		x1(x1), y1(y1), z1(z1),
+		x2(x2), y2(y2), z2(z2),
+		width(width), color1(color1), color2(color2)
+	{}
+	virtual void Draw() const
+	{
+		DrawLine3D(
+			x1, y1, z1,
+			x2, y2, z2,
+			color1, color2, width);
+	}
+	virtual int Type() const
+	{
+		return DBG_VECTOR;
+	}
+};
+
+struct DbgCircle: DbgObject
+{
+	float
+		xc, yc, zc, radius,
+		xn, yn, zn,
+		width;
+	int color, divs;
+	DbgCircle(
+		float xc, float yc, float zc,
+		float radius, int color,
+		float xn, float yn, float zn,
+		float width, int divs):
+		xc(xc), yc(yc), zc(zc),
+		radius(radius), color(color),
+		xn(xn), yn(yn), zn(zn),
+		width(width), divs(divs)
+	{}
+	virtual void Draw() const
+	{
+		DrawCircle3D(
+			xc, yc, zc, radius, color,
+			xn, yn, zn,
+			width, divs);
+	}
+	virtual int Type() const
+	{
+		return DBG_CIRCLE;
+	}
+};
+
+void DbgAddVector(
+	float x1, float y1, float z1,
+	float x2, float y2, float z2,
+	int color1, int color2, float width)
+{
+	DbgAdd(new DbgVector(
+		x1, y1, z1,
+		x2, y2, z2,
+		color1, color2, width));
+}
+
+void DbgAddCircle(
+	float xc, float yc, float zc,
+	float radius, int color,
+	float xn, float yn, float zn,
+	float width, int divs)
+{
+	DbgAdd(new DbgCircle(
+		xc, yc, zc, radius, color,
+		xn, yn, zn,
+		width, divs));
+}
+
+#endif _DEBUG 
