@@ -82,6 +82,7 @@
       <FloatingPointExceptions>
       </FloatingPointExceptions>
       <BufferSecurityCheck>false</BufferSecurityCheck>
+      <TreatWarningAsError>true</TreatWarningAsError>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

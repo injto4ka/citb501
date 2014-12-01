@@ -162,11 +162,11 @@ bool bSortDraw = true;
 
 #define rc fBrickRadiusCube
 #define rb fBallR
-const float fBoxSeg[4][4][2] = {
-	{ { 0,-1}, { -rc,      -rc - rb }, {  rc,      -rc - rb }, { -rc, -rc } }, // bottom side
-	{ { 1, 0}, {  rc + rb, -rc      }, {  rc + rb,  rc      }, {  rc, -rc } }, // right side
-	{ { 0, 1}, { -rc,       rc + rb }, {  rc,       rc + rb }, {  rc,  rc } }, // top side
-	{ {-1, 0}, { -rc - rb, -rc      }, { -rc - rb,  rc      }, { -rc,  rc } }, // left side
+const float fBoxSeg[4][5][2] = {
+	{ { 0,-1}, { -rc,      -rc - rb }, {  rc,      -rc - rb }, { -rc, -rc }, {  0,   rb } }, // bottom side
+	{ { 1, 0}, {  rc + rb, -rc      }, {  rc + rb,  rc      }, {  rc, -rc }, { -rb,   0 } }, // right side
+	{ { 0, 1}, { -rc,       rc + rb }, {  rc,       rc + rb }, {  rc,  rc }, {   0, -rb } }, // top side
+	{ {-1, 0}, { -rc - rb, -rc      }, { -rc - rb,  rc      }, { -rc,  rc }, {  rb,   0 } }, // left side
 };
 #undef rc
 #undef rb
@@ -375,13 +375,16 @@ void Update()
 					case VK_OEM_MINUS:
 					case VK_SUBTRACT:
 						fSimTimeCoef /= 1.5f;
+						Print("fSimTimeCoef = %f\n", fSimTimeCoef);
 						break;
 					case VK_OEM_PLUS:
 					case VK_ADD:
 						fSimTimeCoef *= 1.5f;
+						Print("fSimTimeCoef = %f\n", fSimTimeCoef);
 						break;
 					case VK_MULTIPLY:
 						fSimTimeCoef = 1;
+						Print("fSimTimeCoef = %f\n", fSimTimeCoef);
 						break;
 					}
 				}
@@ -666,9 +669,9 @@ void Draw3D()
 			fNewBallY = fBallY + dy;
 			if (!bValidSpeed)
 				break;
-			float fMinDist = fMinDistBase + 0.5f * d, fMinDist2 = fMinDist * fMinDist, colk, colx, coly;
+			float fMinDist = fMinDistBase + 0.5f * d, fMinDist2 = fMinDist * fMinDist, colk, coll, colx, coly;
 			bool bCollision = false;
-			for(int i = 0; i < nBrickCount; i++)
+			for(int i = 0; i < nBrickCount && !bCollision; i++)
 			{
 				Brick &brick = bricks[i];
 				if( !brick.type || nLastCollision == i )
@@ -681,6 +684,8 @@ void Draw3D()
 				case 1:
 					if( IntersectSegmentCircle2D(fBallX, fBallY, fNewBallX, fNewBallY, brick.x, brick.y, fMinDistBall, &colk) )
 					{
+						colx = brick.x;
+						coly = brick.y;
 						bCollision = true;
 						brick.type = 0;
 					}
@@ -702,9 +707,12 @@ void Draw3D()
 							if( IntersectSegmentSegment2D(
 								fBallX, fBallY, fNewBallX, fNewBallY,
 								fSegX1, fSegY1, fSegX2, fSegY2,
-								&colk) )
+								&colk, &coll) )
 							{
+								colx = fSegX1 + fSeg[4][0] + (fSegX2 - fSegX1) * coll;
+								coly = fSegY1 + fSeg[4][1] + (fSegY2 - fSegY1) * coll;
 								bCollision = true;
+								nLastCollision = i;
 								brick.type = 0;
 								break;
 							}
@@ -720,20 +728,16 @@ void Draw3D()
 									xc + fCenter[0], yc + fCenter[1],
 									fBallR, &colk) )
 								{
+									colx = xc + fCenter[0];
+									coly = yc + fCenter[1];
 									bCollision = true;
+									nLastCollision = i;
 									brick.type = 0;
 									break;
 								}
 							}
 						}
 					}
-					break;
-				}
-				if( bCollision )
-				{
-					nLastCollision = i;
-					colx = brick.x;
-					coly = brick.y;
 					break;
 				}
 			}
@@ -743,7 +747,6 @@ void Draw3D()
 				float dxc = fCentertX - fPlatXc, dyc = fCentertY - fPlatYc;
 				if (dxc * dxc + dyc * dyc <= fMinPlatDist * fMinPlatDist && dx * (fPlatXc - fBallX) + dy * (fPlatYc - fBallY) >= 0)
 				{
-					float coll;
 					if (IntersectSegmentSegment2D(
 						fBallX, fBallY, fNewBallX, fNewBallY,
 						fPlatXc - fPlatformW / 2, fPlatYc + fBallR, fPlatXc + fPlatformW / 2, fPlatYc + fBallR,
@@ -778,6 +781,9 @@ void Draw3D()
 			}
 			if( !bCollision )
 				break;
+			DbgClear();
+			DbgAddVector(fBallX, fBallY, fBallZ, colx, coly, fBallZ, 0xffffffff, 0xff0000ff);
+			DbgAddCircle(fBallX, fBallY, fBallZ, fBallR, 0xff00ffff);
 			fBallX += dx * colk;
 			fBallY += dy * colk;
 			float xn = fBallX - colx, yn = fBallY - coly;
@@ -809,6 +815,8 @@ void Draw3D()
 		GLfloat pGlowPos[] = {fBallX, fBallY, fBallZ, 1.0f};
 		glLightfv(GL_LIGHT2, GL_POSITION, pGlowPos);
 	}
+
+	DbgDraw();
 }
 
 void DrawPar()
