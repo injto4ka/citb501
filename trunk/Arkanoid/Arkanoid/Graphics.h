@@ -173,7 +173,7 @@ public:
 			return GL_LUMINANCE;
 		}
 	}
-	void Draw(float x, float y);
+	void Draw(float x, float y) const;
 };
 
 class Texture
@@ -189,7 +189,6 @@ public:
 	GLint				border;	// The width of the border. Must be either 0 or 1. 
     GLuint				format; // GL_COLOR_INDEX, GL_STENCIL_INDEX, GL_DEPTH_COMPONENT,GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA, GL_RGB, GL_RGBA, GL_LUMINANCE,GL_LUMINANCE_ALPHA, GL_BGR_EXT, GL_BGRA_EXT 
     GLuint				dataFormat; // GL_UNSIGNED_BYTE, GL_BYTE, GL_BITMAP, GL_UNSIGNED_SHORT, GL_SHORT, GL_UNSIGNED_INT, GL_INT, and GL_FLOAT	
-    BYTE				*data; // image data
 	GLint				magFilter; // Mag Filter To Use (GL_NEAREST, GL_LINEAR)
 	GLint				minFilter; // Min Filter To Use (GL_NEAREST, GL_LINEAR)
 	GLint				wrap; // Clamped or Repeated (GL_CLAMP, GL_REPEAT)
@@ -197,7 +196,7 @@ public:
 	Texture():
 		width(0), height(0), id(-1), mipmapped(TRUE), levelDetail(0), border(0),
 		minFilter(GL_LINEAR_MIPMAP_NEAREST), magFilter(GL_LINEAR), wrap(GL_REPEAT),
-		components(PIXEL_COMP_RGB), data(NULL), dataFormat(GL_UNSIGNED_BYTE), format(GL_RGB)
+		components(PIXEL_COMP_RGB), dataFormat(GL_UNSIGNED_BYTE), format(GL_RGB)
 	{}
 	~Texture() { Destroy(); }
 	ErrorCode Create(const Image &image);

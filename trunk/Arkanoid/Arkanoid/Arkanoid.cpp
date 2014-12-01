@@ -1,5 +1,6 @@
 #include <windows.h>			// Windows API Definitions
 #include <deque>
+#include <map>
 
 #include <math.h>
 #include <gl/gl.h>									// Header File For The OpenGL32 Library
@@ -19,7 +20,7 @@
 
 #define LEVEL_WIDTH 20
 #define LEVEL_HEIGHT 10
-#define MAX_TYPE 3
+#define MAX_TYPE 4
 
 BYTE nBpp = 32;				// Bits Per Pixel
 BYTE nDepth = 32;			// Number Of Bits For The Depth Buffer
@@ -48,9 +49,10 @@ BOOL bAllowYield = TRUE;
 BOOL bIsProgramLooping = TRUE;
 BOOL bCreateFullScreen = FALSE;
 LONG nDisplayWidth = 800;
-LONG nDisplayHeight = 600; 
-Image imgBall2D, imgBall3D, imgParticle, imgWood, imgStation, imgElectronics, imgSmile, imgLava;
-Texture texBall, texParticle, texWood, texStation, texElectronics, texSmile, texLava;
+LONG nDisplayHeight = 600;
+std::map<std::string, Image> mImages;
+const Image *imgBall2D = NULL;
+Texture texBall, texParticle, texWood, texStation, texElectronics, texSmile, texLava, texClock, texPlatform;
 GLfloat
 	pLightAmbient[]= { 0.5f, 0.5f, 0.5f, 1.0f }, // Ambient Light Values
 	pLightDiffuse[]= { 1.0f, 1.0f, 1.0f, 1.0f }, // Diffuse Light Values
@@ -65,7 +67,7 @@ BOOL bKeys[256] = {0};
 std::deque<Input> dInput;
 CriticalSection csInput;
 Timer timer;
-DisplayList dlBall, dlBrickBall, dlBrickCube, dlBack, dlSides, dlBottom;
+DisplayList dlBall, dlBrickBall, dlBrickCube, dlBack, dlSides, dlBottom, dlPlatform;
 Transform transform;
 const float
 	fPlaneZDef = -4.8f,
@@ -92,8 +94,8 @@ const float
 	fLevelDepth = 1.0f,
 	fLevelSpanX = 3.0f,
 	fLevelSpanY = 3 * fLevelSpanX / 4,
-	fPlatformW = 1.0f, fPlatformV = 2.0f, fPlatformY = -fLevelSpanY + 0.3f,
-	fBallXStart = 0, fBallYStart = fPlatformY + fBallR, fBallZStart = 0;
+	fPlatW = 1.0f, fPlatV = 2.0f, fPlatY = -fLevelSpanY + 0.3f,
+	fBallXStart = 0, fBallYStart = fPlatY + fBallR, fBallZStart = 0;
 float
 	fPlaneZ = fPlaneZDef,
 	fBallX = fBallXStart, fBallY = fBallYStart, fBallZ = fBallZStart,
@@ -101,9 +103,8 @@ float
 	fBallDirX = 0, fBallDirY = 0,
 	fBallRotX = 0, fBallRotY = 1, fBallRotZ = 0,
 	fSelX = -1.0f, fSelY = -1.0f, fSelZ = 0.0f,
-	fPlatformX = 0;
-int nMouseX = 0, nMouseY = 0;
-int nNewWinX = -1, nNewWinY = -1, nBallN = 6;
+	fPlatX = 0;
+int nMouseX = 0, nMouseY = 0, nNewWinX = -1, nNewWinY = -1, nBallN = 6;
 bool bNewBall = false, bNewMouse = false, bValidSpeed = false;
 Font font("Times New Roman", -16), smallFont("Courier New", -12);
 Event evTask;
@@ -147,7 +148,6 @@ struct Particle
 particles[MAX_PARTICLES] = {0};
 FileDialog fd;
 Directory dir;
-const char *pchCurrentDir = ".";
 bool bEditor = false, bInterface = false;
 const int nBrickCount = LEVEL_WIDTH * LEVEL_HEIGHT;
 struct Brick
@@ -287,13 +287,29 @@ BOOL ReadImage(Image &image, const char *pchFilename)
 	return FALSE;
 }
 
-BOOL CreateTexture(Texture &tex, const Image &img)
+const Image *GetImage(const char *pchImageKey)
 {
-	ErrorCode err = tex.Create(img);
-	if( !err )
-		return TRUE;
-	Print("Error creating texture: %s", err);
-	return FALSE;
+	auto pair = mImages.find(pchImageKey);
+	if( pair == mImages.end() )
+		return NULL;
+	return &pair->second;
+}
+
+BOOL CreateTexture(Texture &tex, const char *pchImageKey)
+{
+	const Image *img = GetImage(pchImageKey);
+	if( !img )
+	{
+		Print("No such image: %s", pchImageKey);
+		return FALSE;
+	}
+	ErrorCode err = tex.Create(*img);
+	if( err )
+	{
+		Print("Error creating texture: %s", err);
+		return FALSE;
+	}
+	return TRUE;
 }
 
 void Update()
@@ -429,9 +445,9 @@ void Draw2D()
 		font.Print(buff, 5, (float)nWinHeight, 0xffffffff, ALIGN_LEFT, ALIGN_TOP);
 	}
 
-	if( !bEditor && bInterface )
+	if( !bEditor && bInterface && imgBall2D )
 	{
-		imgBall2D.Draw(0, 0);
+		imgBall2D->Draw(0, 0);
 	}
 }
 
@@ -539,6 +555,19 @@ void Draw3D()
 		glEnd();
 	}
 
+	if( !dlPlatform )
+	{
+		CompileDisplayList cds(dlPlatform);
+		const float hw = fPlatW / 2, hh = 0.25f;
+		glBegin(GL_QUADS);
+		glNormal3f(0.0f, 1.0f, 0.0f);
+		glTexCoord2f(0.0f, 0.0f); glVertex3f(-hw, 0, hh);
+		glTexCoord2f(1.0f, 0.0f); glVertex3f( hw, 0, hh);
+		glTexCoord2f(1.0f, 1.0f); glVertex3f( hw, 0,-hh);
+		glTexCoord2f(0.0f, 1.0f); glVertex3f(-hw, 0,-hh);
+		glEnd();
+	}
+
 	glPushAttrib(GL_ENABLE_BIT);
 	glEnable(GL_FOG);
 	glDisable(GL_LIGHTING);
@@ -550,73 +579,11 @@ void Draw3D()
 	dlBottom.Execute();
 	glPopAttrib();
 
-	glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT);
-	SetColor(0xffffffff);
-	glDisable(GL_TEXTURE_2D);
-	glBegin(GL_QUADS);
-	// bottom side
-	glNormal3f(0.0f, 1.0f, 0.0f);
+	float fPlatX0 = fPlatX;
 	if (bKeys[VK_RIGHT])
-		fPlatformX = min(fLevelSpanX - fPlatformW / 2, fPlatformX + fPlatformV * dt);
+		fPlatX = min(fLevelSpanX - fPlatW / 2, fPlatX + fPlatV * dt);
 	else if (bKeys[VK_LEFT])
-		fPlatformX = max(-fLevelSpanX + fPlatformW / 2, fPlatformX - fPlatformV * dt);
-	const float fPlatXc = fPlatformX, fPlatYc = fPlatformY, hw = fPlatformW / 2, hh = 0.25f;
-	glVertex3f(fPlatXc - hw, fPlatYc, -hh);
-	glVertex3f(fPlatXc - hw, fPlatYc, hh);
-	glVertex3f(fPlatXc + hw, fPlatYc, hh);
-	glVertex3f(fPlatXc + hw, fPlatYc, -hh);
-	glEnd();
-	glPopAttrib();
-
-	glPushAttrib(GL_ENABLE_BIT);
-	if( bEditor )
-	{
-		if( nSelectedBrick == -1 )
-			glDisable(GL_FOG);
-		else
-			glEnable(GL_FOG);
-	}
-	for(int k = 0; k < MAX_TYPE; k++)
-	{
-		for(int i = 0; i < nBrickCount; i++)
-		{
-			const Brick &brick = bricks[i];
-			if( bSortDraw && brick.type != k )
-				continue;
-			bool bSelected = i == nSelectedBrick;
-			float z = 0;
-			glPushAttrib(GL_ENABLE_BIT);
-			if( bEditor && bSelected )
-			{
-				z = 0.1f + 0.1f*sinf(fJumpEffectZ);
-				glDisable(GL_FOG);
-			}
-			glPushMatrix();
-			glTranslatef(brick.x, brick.y, z);
-			switch( brick.type )
-			{
-			case 1:
-				texSmile.Bind();
-				dlBrickBall.Execute();
-				break;
-			case 2:
-				texWood.Bind();
-				dlBrickCube.Execute();
-				break;
-			default:
-				if( bEditor )
-				{
-					texParticle.Bind();
-					dlBrickBall.Execute();
-				}
-			}
-			glPopMatrix();
-			glPopAttrib();
-		}
-		if( !bSortDraw )
-			break;
-	}
-	glPopAttrib();
+		fPlatX = max(-fLevelSpanX + fPlatW / 2, fPlatX - fPlatV * dt);
 
 	if( bEditor )
 	{
@@ -657,37 +624,40 @@ void Draw3D()
 		}
 
 		fBallA += fBallRotation * dt;
-
-		float d = fBallSpeed * dt, fNewBallX, fNewBallY;
 		int nLastCollision = -1;
-
+		float d = fBallSpeed * dt, fNewBallX, fNewBallY;
 		for (;;)
 		{
 			float dx = fBallDirX * d, dy = fBallDirY * d;
-			float fCentertX = fBallX + 0.5f * dx, fCentertY = fBallY + 0.5f * dy;
+			float fBallXc = fBallX + 0.5f * dx, fBallYc = fBallY + 0.5f * dy;
 			fNewBallX = fBallX + dx;
 			fNewBallY = fBallY + dy;
 			if (!bValidSpeed)
 				break;
 			float fMinDist = fMinDistBase + 0.5f * d, fMinDist2 = fMinDist * fMinDist, colk, coll, colx, coly;
-			bool bCollision = false;
-			for(int i = 0; i < nBrickCount && !bCollision; i++)
+			bool bNewCollision = false;
+			int i = 0;
+			for(; i < nBrickCount && !bNewCollision; i++)
 			{
 				Brick &brick = bricks[i];
 				if( !brick.type || nLastCollision == i )
 					continue;
-				float dxc = fCentertX - brick.x, dyc = fCentertY - brick.y;
-				if( dxc * dxc + dyc * dyc > fMinDist2 || dx * (brick.x - fBallX) + dy * (brick.y - fBallY) < 0 )
+				float dxc = fBallXc - brick.x, dyc = fBallYc - brick.y;
+				if( dxc * dxc + dyc * dyc > fMinDist2 )
 					continue;
 				switch( brick.type )
 				{
 				case 1:
-					if( IntersectSegmentCircle2D(fBallX, fBallY, fNewBallX, fNewBallY, brick.x, brick.y, fMinDistBall, &colk) )
+				case 3:
+					if( dx * (fBallX - brick.x) + dy * (fBallY - brick.y) < 0 && IntersectSegmentCircle2D(fBallX, fBallY, fNewBallX, fNewBallY, brick.x, brick.y, fMinDistBall, &colk) )
 					{
 						colx = brick.x;
 						coly = brick.y;
-						bCollision = true;
-						brick.type = 0;
+						bNewCollision = true;
+						if( brick.type == 1 )
+							brick.type = 3;
+						else
+							brick.type = 0;
 					}
 					break;
 				case 2:
@@ -711,26 +681,28 @@ void Draw3D()
 							{
 								colx = fSegX1 + fSeg[4][0] + (fSegX2 - fSegX1) * coll;
 								coly = fSegY1 + fSeg[4][1] + (fSegY2 - fSegY1) * coll;
-								bCollision = true;
-								nLastCollision = i;
+								bNewCollision = true;
 								brick.type = 0;
 								break;
 							}
 						}
 						// if no side is hit, test collision with each box corner
-						if( !bCollision )
+						if( !bNewCollision )
 						{
 							for(int j = 0; j < 4; j++)
 							{
 								auto fCenter = fBoxSeg[j][3];
+								float xco = xc + fCenter[0], yco = yc + fCenter[1];
+								if( dx * (fBallX - xco) + dy * (fBallY - yco) >= 0 )
+									continue;
 								if( IntersectSegmentCircle2D(
 									fBallX, fBallY, fNewBallX, fNewBallY,
-									xc + fCenter[0], yc + fCenter[1],
+									xco, yco,
 									fBallR, &colk) )
 								{
-									colx = xc + fCenter[0];
-									coly = yc + fCenter[1];
-									bCollision = true;
+									colx = xco;
+									coly = yco;
+									bNewCollision = true;
 									nLastCollision = i;
 									brick.type = 0;
 									break;
@@ -741,51 +713,51 @@ void Draw3D()
 					break;
 				}
 			}
-			if (!bCollision && nLastCollision != nBrickCount)
+			if (!bNewCollision && nLastCollision != i && dy < 0)
 			{
-				float fMinPlatDist = fBallR + 0.5f * (d + fPlatformW);
-				float dxc = fCentertX - fPlatXc, dyc = fCentertY - fPlatYc;
-				if (dxc * dxc + dyc * dyc <= fMinPlatDist * fMinPlatDist && dx * (fPlatXc - fBallX) + dy * (fPlatYc - fBallY) >= 0)
+				float fPlatSpan = (fPlatW + abs(fPlatX - fPlatX0)) / 2;
+				float fMinPlatDist = fBallR + 0.5f * d + fPlatSpan;
+				float fPlatXc = (fPlatX + fPlatX0) / 2;
+				float dxc = fBallXc - fPlatXc, dyc = fBallYc - fPlatY;
+				if (dxc * dxc + dyc * dyc <= fMinPlatDist * fMinPlatDist)
 				{
 					if (IntersectSegmentSegment2D(
 						fBallX, fBallY, fNewBallX, fNewBallY,
-						fPlatXc - fPlatformW / 2, fPlatYc + fBallR, fPlatXc + fPlatformW / 2, fPlatYc + fBallR,
+						fPlatXc - fPlatSpan, fPlatY + fBallR, fPlatXc + fPlatSpan, fPlatY + fBallR,
 						&colk, &coll))
 					{
-						colx = fPlatXc - fPlatformW / 2 + fPlatformW * coll;
-						coly = fPlatYc;
-						bCollision = true;
-						nLastCollision = nBrickCount;
+						colx = fPlatXc - fPlatSpan + 2 * fPlatSpan * coll;
+						coly = fPlatY;
+						bNewCollision = true;
 					}
 					else if (IntersectSegmentCircle2D(
 						fBallX, fBallY, fNewBallX, fNewBallY,
-						fPlatXc - fPlatformW / 2, fPlatYc,
+						fPlatXc - fPlatSpan, fPlatY,
 						fBallR, &colk))
 					{
-						colx = fPlatXc - fPlatformW / 2;
-						coly = fPlatYc;
-						bCollision = true;
-						nLastCollision = nBrickCount;
+						colx = fPlatXc - fPlatSpan;
+						coly = fPlatY;
+						bNewCollision = true;
 					}
 					else if (IntersectSegmentCircle2D(
 						fBallX, fBallY, fNewBallX, fNewBallY,
-						fPlatXc + fPlatformW / 2, fPlatYc,
+						fPlatXc + fPlatSpan, fPlatY,
 						fBallR, &colk))
 					{
-						colx = fPlatXc + fPlatformW / 2;
-						coly = fPlatYc;
-						bCollision = true;
-						nLastCollision = nBrickCount;
+						colx = fPlatXc + fPlatSpan;
+						coly = fPlatY;
+						bNewCollision = true;
 					}
 				}
 			}
-			if( !bCollision )
+			if( !bNewCollision )
 				break;
+			nLastCollision = i;
+			fBallX += dx * colk;
+			fBallY += dy * colk;
 			DbgClear();
 			DbgAddVector(fBallX, fBallY, fBallZ, colx, coly, fBallZ, 0xffffffff, 0xff0000ff);
 			DbgAddCircle(fBallX, fBallY, fBallZ, fBallR, 0xff00ffff);
-			fBallX += dx * colk;
-			fBallY += dy * colk;
 			float xn = fBallX - colx, yn = fBallY - coly;
 			float dot = fBallDirX * xn + fBallDirY * yn;
 			float len = -2 * dot / (xn * xn + yn * yn);
@@ -815,6 +787,68 @@ void Draw3D()
 		GLfloat pGlowPos[] = {fBallX, fBallY, fBallZ, 1.0f};
 		glLightfv(GL_LIGHT2, GL_POSITION, pGlowPos);
 	}
+
+	glPushAttrib(GL_ENABLE_BIT);
+	if( bEditor )
+	{
+		if( nSelectedBrick == -1 )
+			glDisable(GL_FOG);
+		else
+			glEnable(GL_FOG);
+	}
+	else
+	{
+		glPushMatrix();
+		glTranslatef(fPlatX, fPlatY, 0);
+		texPlatform.Bind();
+		dlPlatform.Execute();
+		glPopMatrix();
+	}
+	for(int k = 0; k < MAX_TYPE; k++)
+	{
+		for(int i = 0; i < nBrickCount; i++)
+		{
+			const Brick &brick = bricks[i];
+			if( bSortDraw && brick.type != k )
+				continue;
+			bool bSelected = i == nSelectedBrick;
+			float z = 0;
+			glPushAttrib(GL_ENABLE_BIT);
+			if( bEditor && bSelected )
+			{
+				z = 0.1f + 0.1f*sinf(fJumpEffectZ);
+				glDisable(GL_FOG);
+			}
+			glPushMatrix();
+			glTranslatef(brick.x, brick.y, z);
+			switch( brick.type )
+			{
+			case 1:
+				texSmile.Bind();
+				dlBrickBall.Execute();
+				break;
+			case 2:
+				texWood.Bind();
+				dlBrickCube.Execute();
+				break;
+			case 3:
+				texClock.Bind();
+				dlBrickBall.Execute();
+				break;
+			default:
+				if( bEditor )
+				{
+					texParticle.Bind();
+					dlBrickBall.Execute();
+				}
+			}
+			glPopMatrix();
+			glPopAttrib();
+		}
+		if( !bSortDraw )
+			break;
+	}
+	glPopAttrib();
 
 	DbgDraw();
 }
@@ -966,6 +1000,7 @@ void Randomize()
 bool LoadNextLevel()
 {
 	bool bReached = strCurrentLevel == "";
+	const char *pchCurrentDir = dir.GetCurrent();
 	for(;;)
 	{
 		dir.Reset();
@@ -989,14 +1024,27 @@ bool LoadNextLevel()
 
 void Init()
 {
-	ReadImage(imgBall2D,      "art/ball2d.tga");
-	ReadImage(imgBall3D,      "art/ball3d.tga");
-	ReadImage(imgParticle,    "art/star.tga");
-	ReadImage(imgWood,        "art/crate.tga");
-	ReadImage(imgStation,     "art/station.tga");
-	ReadImage(imgElectronics, "art/electronics.tga");
-	ReadImage(imgSmile,       "art/smile.tga");
-	ReadImage(imgLava,        "art/lava.tga");
+	const char *pchCurrentDir = dir.GetCurrent();
+	dir.Set("Art", "tga");
+	while(dir.Next())
+	{
+		auto attrib = dir.GetAttributes();
+		if( !attrib.directory && attrib.size )
+		{
+			const char *pchFilename = dir.GetData().cFileName;
+			int nIdx = strrchr(pchFilename, '.') - pchFilename;
+			if( nIdx <= 0 )
+				Print("Invalid file name '%s'\n", pchFilename);
+			char pchKey[MAX_PATH] = {0}, pchPath[MAX_PATH];
+			FORMAT(pchPath, "%s\\Art\\%s", pchCurrentDir, pchFilename);
+			strlwr(strncpy(pchKey, pchFilename, nIdx));
+			ErrorCode err = mImages[pchKey].ReadTGA(pchPath);
+			if( err )
+				Print("Error reading image '%s': %s\n", pchFilename, err);
+		}
+	}
+
+	imgBall2D = GetImage("ball2d");
 
 	texParticle.minFilter = GL_NEAREST;
 	texParticle.magFilter = GL_NEAREST;
@@ -1226,13 +1274,15 @@ BOOL glCreate()
 	if( err )
 		Print("Font creation error: %s\n", err);
 
-	CreateTexture(texBall,        imgBall3D);
-	CreateTexture(texParticle,    imgParticle);
-	CreateTexture(texWood,        imgWood);
-	CreateTexture(texStation,     imgStation);
-	CreateTexture(texElectronics, imgElectronics);
-	CreateTexture(texSmile,       imgSmile);
-	CreateTexture(texLava,        imgLava);
+	CreateTexture(texBall,        "ball3d");
+	CreateTexture(texParticle,    "star");
+	CreateTexture(texWood,        "crate");
+	CreateTexture(texStation,     "station");
+	CreateTexture(texElectronics, "electronics");
+	CreateTexture(texSmile,       "smile");
+	CreateTexture(texLava,        "lava");
+	CreateTexture(texClock,       "clock");
+	CreateTexture(texPlatform,    "platform");
 
 	fd.m_hWnd = hWnd;
 

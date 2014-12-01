@@ -138,7 +138,7 @@ ErrorCode Image::ReadTGA(const char *pchFileName)
 	return ReadTGA(file);
 }
 
-void Image::Draw(float x, float y)
+void Image::Draw(float x, float y) const
 {
 	if(!m_uWidth)
 		return;
@@ -188,7 +188,6 @@ ErrorCode Texture::Create(const Image &image)
 			GL_UNSIGNED_BYTE, // data word type
 			data);			// data
 	}
-	//GL_INVALID_VALUE
 
 	return glErrorToStr();
 }
@@ -562,21 +561,30 @@ struct DbgObject
 };
 static std::vector<const DbgObject *> s_vDbgObjects;
 static CriticalSection s_csDbgObjects;
+static DisplayList s_dlDbg;
 void DbgAdd(const DbgObject *obj)
 {
 	Lock lock(s_csDbgObjects);
+	s_dlDbg.Destroy();
 	s_vDbgObjects.push_back(obj);
 	std::sort(s_vDbgObjects.begin(), s_vDbgObjects.end(), DbgObject::Compare);
 }
 void DbgDraw()
 {
-	Lock lock(s_csDbgObjects);
-	glPushAttrib(GL_ENABLE_BIT);
-	glDisable(GL_LIGHTING);
-	glDisable(GL_TEXTURE_2D);
-	for(size_t i = 0; i < s_vDbgObjects.size(); i++)
-		s_vDbgObjects[i]->Draw();
-	glPopAttrib();
+	if( !s_dlDbg )
+	{
+		Lock lock(s_csDbgObjects);
+		if( !s_vDbgObjects.size() )
+			return;
+		CompileDisplayList cds(s_dlDbg);
+		glPushAttrib(GL_ENABLE_BIT);
+		glDisable(GL_LIGHTING);
+		glDisable(GL_TEXTURE_2D);
+		for(size_t i = 0; i < s_vDbgObjects.size(); i++)
+			s_vDbgObjects[i]->Draw();
+		glPopAttrib();
+	}
+	s_dlDbg.Execute();
 }
 void DbgClear()
 {
@@ -584,6 +592,7 @@ void DbgClear()
 	for(size_t i = 0; i < s_vDbgObjects.size(); i++)
 		delete s_vDbgObjects[i];
 	s_vDbgObjects.clear();
+	s_dlDbg.Destroy();
 }
 
 struct DbgVector: DbgObject
