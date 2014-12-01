@@ -78,4 +78,10 @@ bool IntersectSegmentCircle2D(
 	float rc,
 	float *k = NULL);
 
+float DistSegmentPoint2D2(
+	float x1, float y1,
+	float x2, float y2,
+	float xc, float yc,
+	float *k = NULL);
+
 #endif __MATH_H_

@@ -1297,6 +1297,7 @@ void glDestroy()
 	dlBack.Destroy();
 	dlSides.Destroy();
 	dlBottom.Destroy();
+	dlPlatform.Destroy();
 }
 
 //================================================================================================================
