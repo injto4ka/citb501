@@ -17,6 +17,10 @@
 #	define WM_TOGGLEFULLSCREEN (WM_USER+1)									
 #endif
 
+#define LEVEL_WIDTH 20
+#define LEVEL_HEIGHT 10
+#define MAX_TYPE 3
+
 BYTE nBpp = 32;				// Bits Per Pixel
 BYTE nDepth = 32;			// Number Of Bits For The Depth Buffer
 BYTE nStencil = 8;			// Number Of Bits For The Stencil Buffer
@@ -68,18 +72,39 @@ const float
 	fParPlaneZ = -20.0f,
 	fBallSpeed = 1.5f,
 	fBallRotation = 60.0f,
-	fBallR = 0.2f,
-	fBallXStart = 0, fBallYStart = -2.0f, fBallZStart = 0;
+	fBallR = 0.2,
+	fLevelWidth = 5.0f,
+	fBrickMargin = 0.01f,
+	fBrickSize = fLevelWidth / (LEVEL_WIDTH - 1) - fBrickMargin,
+	fBrickRadiusBall = 0.85f * fBrickSize / 2,
+	fBrickRadiusCube = fBrickSize / 2,
+	fMinDistBase = fBallR + 0.71f * fBrickSize,
+	fMinDistBall = fBallR + fBrickRadiusBall,
+	fLevelHeight = (LEVEL_HEIGHT - 1) * (fBrickSize + fBrickMargin),
+	fLevelOffsetX = 0,
+	fLevelOffsetY = 0.5f,
+	fLevelMinX = fLevelOffsetX - fLevelWidth / 2,
+	fLevelMaxX = fLevelOffsetX + fLevelWidth / 2,
+	fLevelMinY = fLevelOffsetY - fLevelHeight / 2,
+	fLevelMaxY = fLevelOffsetY + fLevelHeight / 2,
+	fMaxSelDist = fBrickSize,
+	fMaxSelDist2 = fMaxSelDist * fMaxSelDist,
+	fLevelDepth = 1.0f,
+	fLevelSpanX = 3.0f,
+	fLevelSpanY = 3 * fLevelSpanX / 4,
+	fPlatformW = 1.0f, fPlatformV = 2.0f, fPlatformY = -fLevelSpanY + 0.3f,
+	fBallXStart = 0, fBallYStart = fPlatformY + fBallR, fBallZStart = 0;
 float
 	fPlaneZ = fPlaneZDef,
 	fBallX = fBallXStart, fBallY = fBallYStart, fBallZ = fBallZStart,
 	fBallA = 0,
 	fBallDirX = 0, fBallDirY = 0,
 	fBallRotX = 0, fBallRotY = 1, fBallRotZ = 0,
-	fSelX = -1.0f, fSelY = -1.0f, fSelZ = 0.0f;
+	fSelX = -1.0f, fSelY = -1.0f, fSelZ = 0.0f,
+	fPlatformX = 0;
 int nMouseX = 0, nMouseY = 0;
 int nNewWinX = -1, nNewWinY = -1, nBallN = 6;
-bool bNewBall = false, bNewMouse = false;
+bool bNewBall = false, bNewMouse = false, bValidSpeed = false;
 Font font("Times New Roman", -16), smallFont("Courier New", -12);
 Event evTask;
 Panel c_pEditor, c_pGame, c_pControls, c_pParticles;
@@ -124,36 +149,12 @@ FileDialog fd;
 Directory dir;
 const char *pchCurrentDir = ".";
 bool bEditor = false, bInterface = false;
-
-#define LEVEL_WIDTH 20
-#define LEVEL_HEIGHT 10
-#define MAX_TYPE 3
 const int nBrickCount = LEVEL_WIDTH * LEVEL_HEIGHT;
 struct Brick
 {
 	int type;
 	float x, y;
 } bricks[ nBrickCount ] = {};
-const float
-	fLevelWidth = 5.0f,
-	fBrickMargin = 0.01f,
-	fBrickSize = fLevelWidth / (LEVEL_WIDTH - 1) - fBrickMargin,
-	fBrickRadiusBall = 0.85f * fBrickSize / 2,
-	fBrickRadiusCube = fBrickSize / 2,
-	fMinDistBase = fBallR + 0.71f * fBrickSize,
-	fMinDistBall = fBallR + fBrickRadiusBall,
-	fLevelHeight = (LEVEL_HEIGHT - 1) * (fBrickSize + fBrickMargin),
-	fLevelOffsetX = 0,
-	fLevelOffsetY = 0.5f,
-	fLevelMinX = fLevelOffsetX - fLevelWidth / 2,
-	fLevelMaxX = fLevelOffsetX + fLevelWidth / 2,
-	fLevelMinY = fLevelOffsetY - fLevelHeight / 2,
-	fLevelMaxY = fLevelOffsetY + fLevelHeight / 2,
-	fMaxSelDist = fBrickSize,
-	fMaxSelDist2 = fMaxSelDist * fMaxSelDist,
-	fLevelDepth = 1.0f,
-	fLevelSpanX = 3.0f,
-	fLevelSpanY = 3 * fLevelSpanX / 4;
 float fJumpEffectZ = 0;
 int nSelectedBrick = -1;
 std::string strCurrentLevel;
@@ -442,7 +443,7 @@ void ScreenToScene(const int &x0, const int &y0, float &x, float &y, float &z)
 	z = (float)dZ;
 }
 
-void SetNewDir(float dx, float dy)
+float SetNewDir(float dx, float dy)
 {
 	float fDist2 = dx*dx + dy*dy;
 	if( fDist2 > 0 )
@@ -451,6 +452,7 @@ void SetNewDir(float dx, float dy)
 		fBallDirX = dx * fDistRec;
 		fBallDirY = dy * fDistRec;
 	}
+	return fDist2;
 }
 
 void Draw3D()
@@ -463,7 +465,7 @@ void Draw3D()
 	if( bUpdateMouse )
 	{
 		ScreenToScene(nNewWinX, nNewWinY, fSelX, fSelY, fSelZ);
-		SetNewDir(fSelX - fBallX, fSelY - fBallY);
+		bValidSpeed = SetNewDir(fSelX - fBallX, fSelY - fBallY) > 0;
 	}
 
 	float time = timer.Time();
@@ -543,6 +545,24 @@ void Draw3D()
 	dlSides.Execute();
 	texLava.Bind();
 	dlBottom.Execute();
+	glPopAttrib();
+
+	glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT);
+	SetColor(0xffffffff);
+	glDisable(GL_TEXTURE_2D);
+	glBegin(GL_QUADS);
+	// bottom side
+	glNormal3f(0.0f, 1.0f, 0.0f);
+	if (bKeys[VK_RIGHT])
+		fPlatformX = min(fLevelSpanX - fPlatformW / 2, fPlatformX + fPlatformV * dt);
+	else if (bKeys[VK_LEFT])
+		fPlatformX = max(-fLevelSpanX + fPlatformW / 2, fPlatformX - fPlatformV * dt);
+	const float fPlatXc = fPlatformX, fPlatYc = fPlatformY, hw = fPlatformW / 2, hh = 0.25f;
+	glVertex3f(fPlatXc - hw, fPlatYc, -hh);
+	glVertex3f(fPlatXc - hw, fPlatYc, hh);
+	glVertex3f(fPlatXc + hw, fPlatYc, hh);
+	glVertex3f(fPlatXc + hw, fPlatYc, -hh);
+	glEnd();
 	glPopAttrib();
 
 	glPushAttrib(GL_ENABLE_BIT);
@@ -637,13 +657,16 @@ void Draw3D()
 
 		float d = fBallSpeed * dt, fNewBallX, fNewBallY;
 		int nLastCollision = -1;
-		for(;;)
+
+		for (;;)
 		{
 			float dx = fBallDirX * d, dy = fBallDirY * d;
 			float fCentertX = fBallX + 0.5f * dx, fCentertY = fBallY + 0.5f * dy;
 			fNewBallX = fBallX + dx;
 			fNewBallY = fBallY + dy;
-			float fMinDist = fMinDistBase + 0.5f * d, fMinDist2 = fMinDist * fMinDist;
+			if (!bValidSpeed)
+				break;
+			float fMinDist = fMinDistBase + 0.5f * d, fMinDist2 = fMinDist * fMinDist, colk, colx, coly;
 			bool bCollision = false;
 			for(int i = 0; i < nBrickCount; i++)
 			{
@@ -653,7 +676,6 @@ void Draw3D()
 				float dxc = fCentertX - brick.x, dyc = fCentertY - brick.y;
 				if( dxc * dxc + dyc * dyc > fMinDist2 || dx * (brick.x - fBallX) + dy * (brick.y - fBallY) < 0 )
 					continue;
-				float colk;
 				switch( brick.type )
 				{
 				case 1:
@@ -710,20 +732,60 @@ void Draw3D()
 				if( bCollision )
 				{
 					nLastCollision = i;
-					fBallX += dx * colk;
-					fBallY += dy * colk;
-					float xn = fBallX - brick.x, yn = fBallY - brick.y;
-					float dot = fBallDirX * xn + fBallDirY * yn;
-					float len = -2 * dot / (xn * xn + yn * yn);
-					SetNewDir(fBallDirX + len * xn, fBallDirY + len * yn);
-					d *= 1 - colk;
+					colx = brick.x;
+					coly = brick.y;
 					break;
+				}
+			}
+			if (!bCollision && nLastCollision != nBrickCount)
+			{
+				float fMinPlatDist = fBallR + 0.5f * (d + fPlatformW);
+				float dxc = fCentertX - fPlatXc, dyc = fCentertY - fPlatYc;
+				if (dxc * dxc + dyc * dyc <= fMinPlatDist * fMinPlatDist && dx * (fPlatXc - fBallX) + dy * (fPlatYc - fBallY) >= 0)
+				{
+					float coll;
+					if (IntersectSegmentSegment2D(
+						fBallX, fBallY, fNewBallX, fNewBallY,
+						fPlatXc - fPlatformW / 2, fPlatYc + fBallR, fPlatXc + fPlatformW / 2, fPlatYc + fBallR,
+						&colk, &coll))
+					{
+						colx = fPlatXc - fPlatformW / 2 + fPlatformW * coll;
+						coly = fPlatYc;
+						bCollision = true;
+						nLastCollision = nBrickCount;
+					}
+					else if (IntersectSegmentCircle2D(
+						fBallX, fBallY, fNewBallX, fNewBallY,
+						fPlatXc - fPlatformW / 2, fPlatYc,
+						fBallR, &colk))
+					{
+						colx = fPlatXc - fPlatformW / 2;
+						coly = fPlatYc;
+						bCollision = true;
+						nLastCollision = nBrickCount;
+					}
+					else if (IntersectSegmentCircle2D(
+						fBallX, fBallY, fNewBallX, fNewBallY,
+						fPlatXc + fPlatformW / 2, fPlatYc,
+						fBallR, &colk))
+					{
+						colx = fPlatXc + fPlatformW / 2;
+						coly = fPlatYc;
+						bCollision = true;
+						nLastCollision = nBrickCount;
+					}
 				}
 			}
 			if( !bCollision )
 				break;
+			fBallX += dx * colk;
+			fBallY += dy * colk;
+			float xn = fBallX - colx, yn = fBallY - coly;
+			float dot = fBallDirX * xn + fBallDirY * yn;
+			float len = -2 * dot / (xn * xn + yn * yn);
+			SetNewDir(fBallDirX + len * xn, fBallDirY + len * yn);
+			d *= 1 - colk;
 		}
-		
 		fBallX = fNewBallX;
 		fBallY = fNewBallY;
 		if( fBallDirX < 0 && fBallX - fBallR <= -fLevelSpanX || fBallDirX > 0 && fBallX + fBallR >= fLevelSpanX  )
