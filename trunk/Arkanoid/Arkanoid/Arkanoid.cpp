@@ -609,6 +609,16 @@ void Update()
 			DbgClear();
 			DbgAddVector(fBallX, fBallY, fBallZ, colx, coly, fBallZ, 0xffffffff, 0xff0000ff);
 			DbgAddCircle(fBallX, fBallY, fBallZ, fBallR, 0xff00ffff);
+
+			DbgAddVector(fBallX, fBallY, fBallZ, fBallX + fBallSpeed * fBallDirX, fBallY + fBallSpeed * fBallDirY, fBallZ, 0xffffffff);
+			DbgAddVector(fSelX, fSelY, fSelZ, fSelX + (fBallX - fSelX) / 2, fSelY + (fBallY - fSelY) / 2, fSelZ, 0xffffffff);
+			DbgAddSpline(
+				fBallX, fBallY, fBallZ,
+				fBallX + fBallSpeed * fBallDirX, fBallY + fBallSpeed * fBallDirY, fBallZ,
+				fSelX + (fBallX - fSelX) / 2, fSelY + (fBallY - fSelY) / 2, fSelZ,
+				fSelX, fSelY, fSelZ,
+				0xffffff00, 1, 0.001f);
+
 			float xn = fBallX - colx, yn = fBallY - coly;
 			float dot = fBallDirX * xn + fBallDirY * yn;
 			float len = -2 * dot / (xn * xn + yn * yn);

@@ -8,6 +8,7 @@
 #include <gl/glu.h>									// Header File For The GLu32 Library
 
 #include "utils.h"
+#include "math.h"
 
 enum RGB_COMPS
 {
@@ -72,6 +73,9 @@ GLvoid DrawLine3D(
 GLvoid DrawCircle3D(
 		float xc, float yc, float zc, float radius, int color = 0xffffffff,
 		float xn = 0, float yn = 0, float zn = 1,
+		float line = 1, int divs = 12);
+GLvoid DrawSpline3D(
+		const Point *coef, int color = 0xffffffff,
 		float line = 1, int divs = 12);
 GLvoid DrawLine2D(
 		float x1, float y1, 
@@ -276,11 +280,19 @@ void DbgAddCircle(
 	float radius, int color = 0xffffffff,
 	float xn = 0.0f, float yn = 0.0f, float zn = 1.0f,
 	float width = 1.0f, int divs = 12);
+void DbgAddSpline(
+	float x1, float y1, float z1,
+	float x2, float y2, float z2,
+	float x3, float y3, float z3,
+	float x4, float y4, float z4,
+	int color = 0xffffffff, float width = 1.0f,
+	float step = 0, int steps = 12);
 #else
 #	define DbgDraw() ((void)0)
 #	define DbgClear() ((void)0)
 #	define DbgAddVector(...) ((void)0)
 #	define DbgAddCircle(...) ((void)0)
+#	define DbgAddSpline(...) ((void)0)
 #endif _DEBUG
 
 #endif __GRAPHICS_H_

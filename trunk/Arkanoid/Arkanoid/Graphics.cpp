@@ -1,6 +1,4 @@
 #include "graphics.h"
-#include "math.h"
-
 #include <algorithm>
 
 ErrorCode glErrorToStr()
@@ -427,6 +425,35 @@ GLvoid DrawCircle3D(
 	glPopMatrix();
 }
 
+GLvoid DrawSpline3D(
+		const Point *coefs, int color,
+		float line, int divs)
+{
+	glPushAttrib(GL_LINE_BIT | GL_CURRENT_BIT);
+	if(color)
+		SetColor(color);
+	if(line)
+		glLineWidth(line);
+	glBegin(GL_LINE_STRIP);
+
+	Point pt = SplinePos(coefs, 0);
+	glVertex3f( pt.x, pt.y, pt.z );
+	if( divs > 2 )
+	{
+		float k = 1.0f / (divs - 1);
+		for(int i = 1; i < divs - 1; i++)
+		{
+			pt = SplinePos(coefs, i * k);
+			glVertex3f( pt.x, pt.y, pt.z );
+		}
+	}
+	pt = SplinePos(coefs, 1);
+	glVertex3f( pt.x, pt.y, pt.z );
+
+	glEnd();
+	glPopAttrib();
+}
+
 void DrawBox(
 		float left, float top,
 		float width, float height,
@@ -554,6 +581,7 @@ struct DbgObject
 	enum Types {
 		DBG_VECTOR,
 		DBG_CIRCLE,
+		DBG_SPLINE,
 		DBG_COUNT,
 	};
 	bool operator < (const DbgObject& other) const { return Type() < other.Type(); }
@@ -606,9 +634,9 @@ struct DbgVector: DbgObject
 		float x1, float y1, float z1,
 		float x2, float y2, float z2,
 		int color1, int color2, float width):
-		x1(x1), y1(y1), z1(z1),
-		x2(x2), y2(y2), z2(z2),
-		width(width), color1(color1), color2(color2)
+			x1(x1), y1(y1), z1(z1),
+			x2(x2), y2(y2), z2(z2),
+			width(width), color1(color1), color2(color2)
 	{}
 	virtual void Draw() const
 	{
@@ -623,6 +651,17 @@ struct DbgVector: DbgObject
 	}
 };
 
+void DbgAddVector(
+	float x1, float y1, float z1,
+	float x2, float y2, float z2,
+	int color1, int color2, float width)
+{
+	DbgAdd(new DbgVector(
+		x1, y1, z1,
+		x2, y2, z2,
+		color1, color2, width));
+}
+
 struct DbgCircle: DbgObject
 {
 	float
@@ -635,10 +674,10 @@ struct DbgCircle: DbgObject
 		float radius, int color,
 		float xn, float yn, float zn,
 		float width, int divs):
-		xc(xc), yc(yc), zc(zc),
-		radius(radius), color(color),
-		xn(xn), yn(yn), zn(zn),
-		width(width), divs(divs)
+			xc(xc), yc(yc), zc(zc),
+			radius(radius), color(color),
+			xn(xn), yn(yn), zn(zn),
+			width(width), divs(divs)
 	{}
 	virtual void Draw() const
 	{
@@ -653,17 +692,6 @@ struct DbgCircle: DbgObject
 	}
 };
 
-void DbgAddVector(
-	float x1, float y1, float z1,
-	float x2, float y2, float z2,
-	int color1, int color2, float width)
-{
-	DbgAdd(new DbgVector(
-		x1, y1, z1,
-		x2, y2, z2,
-		color1, color2, width));
-}
-
 void DbgAddCircle(
 	float xc, float yc, float zc,
 	float radius, int color,
@@ -674,6 +702,61 @@ void DbgAddCircle(
 		xc, yc, zc, radius, color,
 		xn, yn, zn,
 		width, divs));
+}
+
+struct DbgSpline: DbgObject
+{
+	int steps, color;
+	float width;
+	Point coef[4];
+	
+	DbgSpline(
+		float x1, float y1, float z1,
+		float x2, float y2, float z2,
+		float x3, float y3, float z3,
+		float x4, float y4, float z4,
+		int color, float width,
+		float step, int steps):
+			color(color), width(width), steps(steps)
+	{
+		Point pt[] = {
+			Point(x1, y1, z1),
+			Point(x2, y2, z2),
+			Point(x3, y3, z3),
+			Point(x4, y4, z4),
+		};
+		if( step )
+		{
+			float len = SplineLenEst(pt);
+			steps = 1 + Trunc(len / step);
+		}
+		SplineCoefs(pt, coef);
+	}
+	virtual void Draw() const
+	{
+		DrawSpline3D(coef, color, width, steps);
+	}
+	virtual int Type() const
+	{
+		return DBG_SPLINE;
+	}
+};
+
+void DbgAddSpline(
+	float x1, float y1, float z1,
+	float x2, float y2, float z2,
+	float x3, float y3, float z3,
+	float x4, float y4, float z4,
+	int color, float width,
+	float step, int steps)
+{
+	DbgAdd(new DbgSpline(
+		x1, y1, z1,
+		x2, y2, z2,
+		x3, y3, z3,
+		x4, y4, z4,
+		color, width,
+		step, steps));
 }
 
 #endif _DEBUG 
