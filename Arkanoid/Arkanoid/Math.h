@@ -64,6 +64,11 @@ struct Quaternion {
 		Quaternion q = (*this) * Quaternion(pt.x, pt.y, pt.z) * this->Inv();
 		return Point(q.x, q.y, q.z);
 	}
+	float GetDeg() const 
+	{
+		ASSERT( w >= -1 && w <= 1 );
+		return (360 / PI) * acosf(w);
+	}
 };
 
 bool IntersectSegmentSegment2D(
@@ -83,5 +88,48 @@ float DistSegmentPoint2D2(
 	float x2, float y2,
 	float xc, float yc,
 	float *k = NULL);
+
+inline void SplineCoefs( const Point *pt, Point *c )
+{
+	c[0] = pt[0];
+	c[1] = (pt[1] - pt[0])*3;
+	c[2] = (pt[2] - pt[1]*2 + pt[0])*3;
+	c[3] = pt[3] - (pt[2] - pt[1])*3 - pt[0];
+}
+
+inline Point SplinePos( const Point *c, float t )
+{
+	return Point(
+		((c[3].x * t + c[2].x) * t + c[1].x) * t + c[0].x,
+		((c[3].y * t + c[2].y) * t + c[1].y) * t + c[0].y,
+		((c[3].z * t + c[2].z) * t + c[1].z) * t + c[0].z);
+}
+
+inline Point SplineDir( const Point *c, float t )
+{
+	return Point(
+		(c[3].x * 1.5f * t + c[2].x) * 2.0f * t + c[1].x,
+		(c[3].y * 1.5f * t + c[2].y) * 2.0f * t + c[1].y,
+		(c[3].z * 1.5f * t + c[2].z) * 2.0f * t + c[1].z);
+}
+
+inline Point SplineAccel( const Point *c, float t )
+{
+	return Point(
+		c[3].x * 6.0f * t + c[2].x * 2.0f,
+		c[3].y * 6.0f * t + c[2].y * 2.0f,
+		c[3].z * 6.0f * t + c[2].z * 2.0f);
+}
+
+inline float SplineLenEst( const Point *pt, float *fMinLen = NULL, float *fMaxLen = NULL)
+{
+	float fMin = sqrtf(pt[3].Dist2(pt[0]));
+	float fMax = sqrtf(pt[0].Dist2(pt[1])) + sqrtf(pt[1].Dist2(pt[2])) + sqrtf(pt[2].Dist2(pt[3]));
+	if( fMinLen )
+		*fMinLen = fMin;
+	if( fMaxLen )
+		*fMaxLen = fMax;
+	return ( fMin + fMax ) / 2;
+}
 
 #endif __MATH_H_
