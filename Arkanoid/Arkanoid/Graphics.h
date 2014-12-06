@@ -40,7 +40,7 @@ struct TGAHeader
 	unsigned short m_iX_Origin;
 	// ignore this field..... 0
 	unsigned short m_iY_Origin;
-	// the image width....
+	// the image fWidth....
 	unsigned short m_iWidth;
 	// the image height.... 
 	unsigned short m_iHeight;
@@ -71,39 +71,39 @@ GLvoid DrawLine3D(
 		float x2, float y2, float z2,
 		int c1 = 0xffffffff, int c2 = 0, float w = 1);
 GLvoid DrawCircle3D(
-		float xc, float yc, float zc, float radius, int color = 0xffffffff,
+		float xc, float yc, float zc, float fRadius, int nColor = 0xffffffff,
 		float xn = 0, float yn = 0, float zn = 1,
-		float line = 1, int divs = 12);
+		float line = 1, int nDivs = 12);
 GLvoid DrawSpline3D(
-		const Point *coef, int color = 0xffffffff,
-		float line = 1, int divs = 12);
+		const Point *coef, int nColor = 0xffffffff,
+		float line = 1, int nDivs = 12);
 GLvoid DrawLine2D(
 		float x1, float y1, 
 		float x2, float y2,
 		int c = 0xffffffff, float w = 1);
 void DrawBox(
 		float left, float top,
-		float width, float height,
-		DWORD color = 0, float line = 0);
+		float fWidth, float height,
+		DWORD nColor = 0, float line = 0);
 void FillBox(
 		float left, float top,
-		float width, float height,
-		DWORD color = 0);
+		float fWidth, float height,
+		DWORD nColor = 0);
 
 void DrawBox(
 	int left, int top,
-	int width, int height,
-	DWORD color = 0, float line = 0);
+	int fWidth, int height,
+	DWORD nColor = 0, float line = 0);
 void FillBox(
 	int left, int top,
-	int width, int height,
-	DWORD color = 0);
+	int fWidth, int height,
+	DWORD nColor = 0);
 
 ErrorCode glErrorToStr();
 
-inline void SetColor(DWORD color)
+inline void SetColor(DWORD nColor)
 {
-	glColor4ubv(INT_TO_BYTE(color));
+	glColor4ubv(INT_TO_BYTE(nColor));
 }
 
 class Transform
@@ -186,11 +186,11 @@ protected:
 	GLuint				id; // GL Texture Identification
 public:
 	BOOL				mipmapped;
-	GLint				width; // For Not Mipmapped Must be 2^n + 2(border) for some integer n. 
+	GLint				fWidth; // For Not Mipmapped Must be 2^n + 2(border) for some integer n. 
 	GLint				height;	// For Not Mipmapped Must be 2^m + 2(border) for some integer m. 
 	GLint				levelDetail; // The level-of-detail number. Level 0 is the base image level. Level n is the nth mipmap reduction image. 
-    GLint				components; // The number of color components in the texture. Must be 1, 2, 3, or 4. 	
-	GLint				border;	// The width of the border. Must be either 0 or 1. 
+    GLint				components; // The number of nColor components in the texture. Must be 1, 2, 3, or 4. 	
+	GLint				border;	// The fWidth of the border. Must be either 0 or 1. 
     GLuint				format; // GL_COLOR_INDEX, GL_STENCIL_INDEX, GL_DEPTH_COMPONENT,GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA, GL_RGB, GL_RGBA, GL_LUMINANCE,GL_LUMINANCE_ALPHA, GL_BGR_EXT, GL_BGRA_EXT 
     GLuint				dataFormat; // GL_UNSIGNED_BYTE, GL_BYTE, GL_BITMAP, GL_UNSIGNED_SHORT, GL_SHORT, GL_UNSIGNED_INT, GL_INT, and GL_FLOAT	
 	GLint				magFilter; // Mag Filter To Use (GL_NEAREST, GL_LINEAR)
@@ -198,7 +198,7 @@ public:
 	GLint				wrap; // Clamped or Repeated (GL_CLAMP, GL_REPEAT)
 
 	Texture():
-		width(0), height(0), id(-1), mipmapped(TRUE), levelDetail(0), border(0),
+		fWidth(0), height(0), id(-1), mipmapped(TRUE), levelDetail(0), border(0),
 		minFilter(GL_LINEAR_MIPMAP_NEAREST), magFilter(GL_LINEAR), wrap(GL_REPEAT),
 		components(PIXEL_COMP_RGB), dataFormat(GL_UNSIGNED_BYTE), format(GL_RGB)
 	{}
@@ -272,21 +272,15 @@ public:
 void DbgDraw();
 void DbgClear();
 void DbgAddVector(
-	float x1, float y1, float z1,
-	float x2, float y2, float z2,
-	int color1 = 0xffffffff, int color2 = 0, float width = 1.0f);
+	Point ptPos, Point ptDir,
+	int nColor1 = 0xffffffff, int nColor2 = 0, float fWidth = 1.0f);
 void DbgAddCircle(
-	float xc, float yc, float zc,
-	float radius, int color = 0xffffffff,
-	float xn = 0.0f, float yn = 0.0f, float zn = 1.0f,
-	float width = 1.0f, int divs = 12);
+	Point ptCenter, float fRadius, int nColor = 0xffffffff,
+	Point ptNormal = Point(0, 0, 1), float fWidth = 1.0f, int nDivs = 12);
 void DbgAddSpline(
-	float x1, float y1, float z1,
-	float x2, float y2, float z2,
-	float x3, float y3, float z3,
-	float x4, float y4, float z4,
-	int color = 0xffffffff, float width = 1.0f,
-	float step = 0, int steps = 12);
+	Point ptPos1, Point ptDir1, Point ptPos2, Point ptDir2,
+	int nColor = 0xffffffff, float fWidth = 1.0f,
+	float fStep = 0, int nDivs = 12);
 #else
 #	define DbgDraw() ((void)0)
 #	define DbgClear() ((void)0)
