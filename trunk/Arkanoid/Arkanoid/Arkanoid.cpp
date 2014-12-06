@@ -1,55 +1,20 @@
-#include <windows.h>			// Windows API Definitions
 #include <deque>
 #include <map>
-
 #include <math.h>
-#include <gl/gl.h>									// Header File For The OpenGL32 Library
-#include <gl/glu.h>									// Header File For The GLu32 Library
 
 #include "utils.h"
 #include "graphics.h"
 #include "ui.h"
 #include "math.h"
-
-#pragma comment( lib, "opengl32.lib" )				// Search For OpenGL32.lib While Linking
-#pragma comment( lib, "glu32.lib" )					// Search For GLu32.lib While Linking
-
-#ifndef WM_TOGGLEFULLSCREEN							// Application Define Message For Toggling
-#	define WM_TOGGLEFULLSCREEN (WM_USER+1)									
-#endif
+#include "application.h"
 
 #define LEVEL_WIDTH 20
 #define LEVEL_HEIGHT 10
 #define MAX_TYPE 4
 
-BYTE nBpp = 32;				// Bits Per Pixel
-BYTE nDepth = 32;			// Number Of Bits For The Depth Buffer
-BYTE nStencil = 8;			// Number Of Bits For The Stencil Buffer
-LPTSTR pchCmdLine = "";
-int nShow = 0;
-HINSTANCE hInst = NULL;
-HWND hWnd = NULL; // Window Handle
-HDC hDC = NULL;   // Device Context
-HGLRC hRC = NULL; // Rendering Context
-BOOL bFullscreen = FALSE;
-BOOL bVisible = TRUE;
-LPTSTR pchName = "Arkanoid";
-LONG nLeft = 400, nLastLeft = 0;		// Left Position
-LONG nTop = 300, nLastTop = 0; 		// Top Position
-LONG nWinWidth = 800;
-LONG nWinHeight = 600;
 float fPerspAngle = 60;
 float fPerspNearZ = 0.01f;
 float fPerspFarZ = 100.0f;
-RECT rect; 		      // oustide borders
-DWORD nStyle = 0;
-DWORD nExtStyle = 0;
-BOOL bAllowSleep = FALSE;
-BOOL bAllowYield = TRUE;
-BOOL bIsProgramLooping = TRUE;
-BOOL bCreateFullScreen = FALSE;
-LONG nDisplayWidth = 800;
-LONG nDisplayHeight = 600;
 std::map<std::string, Image> mImages;
 const Image *imgBall2D = NULL;
 Texture texBall, texParticle, texWood, texStation, texElectronics, texSmile, texLava, texClock, texPlatform;
@@ -63,9 +28,7 @@ GLfloat
 float fFogDensity = 0.1f;
 float fLastSimTime = 0;
 GLenum uFogQuality = GL_DONT_CARE;
-BOOL bKeys[256] = {0};
-std::deque<Input> dInput;
-CriticalSection csInput;
+
 Timer timer;
 DisplayList dlBall, dlBrickBall, dlBrickCube, dlBack, dlSides, dlBottom, dlPlatform;
 Transform transform;
@@ -104,7 +67,7 @@ float
 	fBallRotX = 0, fBallRotY = 1, fBallRotZ = 0,
 	fSelX = -1.0f, fSelY = -1.0f, fSelZ = 0.0f,
 	fPlatX = 0;
-int nMouseX = 0, nMouseY = 0, nNewWinX = -1, nNewWinY = -1, nBallN = 6;
+int nNewWinX = -1, nNewWinY = -1, nBallN = 6;
 bool bNewBall = false, bNewMouse = false, bNewSelection = false, bValidSpeed = false;
 Font font("Times New Roman", -16), smallFont("Courier New", -12);
 Event evTask;
@@ -113,7 +76,7 @@ Label c_lPath;
 Button c_bExit, c_bLoad, c_bSave;
 CheckBox c_cbFullscreen, c_cbGeometry, c_cbParticles;
 SliderBar c_sFriction, c_sSlowdown, c_sBrick;
-Control c_container;
+
 std::deque<float> lfFrameIntervals;
 const float fTimeSumMax = 3;
 float fLastFrameTime = 0, fFrameInterval = 0, fSimTimeCoef = 1.0f;
@@ -172,20 +135,18 @@ const float fBoxSeg[4][5][2] = {
 #undef rc
 #undef rb
 
+Application app("Arkanoid");
+
 //=========================================================================================================
 
-#define Message(fmt, ...) Message(hWnd, fmt, __VA_ARGS__)
-
-void Terminate()
+void _Terminate()
 {
-	bIsProgramLooping = FALSE;
-	PostMessage (hWnd, WM_QUIT, 0, 0);
+	app.Terminate();
 }
 
-void ToggleFullscreen()
+void _ToggleFullscreen()
 {
-	bCreateFullScreen = !bCreateFullScreen;
-	PostMessage(hWnd, WM_QUIT, 0, 0);
+	app.ToggleFullscreen();
 }
 
 void UpdateVisibility()
@@ -336,360 +297,14 @@ float SetNewDir(float dx, float dy)
 	return fDist2;
 }
 
-void ProcessInput()
-{
-	while( dInput.size() > 0 )
-	{
-		Input input;
-		{
-			Lock lock(csInput);
-			input = dInput.front();
-			dInput.pop_front();
-		}
-		switch(input.eType)
-		{
-			case InputMouse:
-			{
-				const Mouse &mouse = input.mouse;
-				{
-					int x = mouse.x;
-					int y = nWinHeight - mouse.y;
-					if( !c_container._OnMousePos(x, y, mouse.lbutton) )
-					{
-						if( mouse.lbutton )
-						{
-							nNewWinX = x;
-							nNewWinY = y;
-							bNewMouse = true;
-						}
-					}
-					if( mouse.wheel )
-					{
-						fPlaneZ += 0.1f * mouse.wheel;
-						Print("fPlaneZ = %f\n", fPlaneZ);
-					}
-				}
-				break;
-			}
-			case InputKey:
-			{
-				const Keyboard &keyboard = input.keyboard;
-				if( !keyboard.repeated && keyboard.pressed )
-				{
-					switch( keyboard.code )
-					{
-					case VK_ESCAPE:
-						bInterface = !bInterface;
-						UpdateVisibility();
-						break;
-					case VK_F11:
-						ToggleFullscreen();
-						break;
-					case VK_F3:
-						ToggleEditor();
-						break;
-					case VK_F4:
-						if( keyboard.alt )
-							Terminate();
-						break;
-					case VK_F6:
-						bSortDraw = !bSortDraw;
-						break;
-					case VK_F7:
-						fPlaneZ = fPlaneZDef;
-						break;
-					case VK_UP:
-						if(keyboard.alt && nBallN < 10000)
-						{
-							nBallN++;
-							bNewBall = true;
-						}
-						break;
-					case VK_DOWN:
-						if(keyboard.alt && nBallN > 2)
-						{
-							nBallN--;
-							bNewBall = true;
-						}
-						break;
-					case VK_OEM_MINUS:
-					case VK_SUBTRACT:
-						fSimTimeCoef /= 1.5f;
-						Print("fSimTimeCoef = %f\n", fSimTimeCoef);
-						break;
-					case VK_OEM_PLUS:
-					case VK_ADD:
-						fSimTimeCoef *= 1.5f;
-						Print("fSimTimeCoef = %f\n", fSimTimeCoef);
-						break;
-					case VK_MULTIPLY:
-						fSimTimeCoef = 1;
-						Print("fSimTimeCoef = %f\n", fSimTimeCoef);
-						break;
-					}
-				}
-			}
-		}
-	}
-}
-
-void Update()
-{
-	ProcessInput();
-
-	bool bUpdateSelection = bNewSelection;
-	bNewSelection = false;
-
-	float time = timer.Time();
-	float dt = (time - fLastSimTime) * fSimTimeCoef;
-	fLastSimTime = time;
-
-	if( bEditor )
-	{
-		if( bUpdateSelection )
-		{
-			int nNewSelectedBrick = -1;
-			float fMinDist2 = 0;
-			for(int i = 0; i < nBrickCount; i++)
-			{
-				const Brick &brick = bricks[i];
-				float dx = fSelX - brick.x, dy = fSelY - brick.y;
-				float fDist2 = dx * dx + dy * dy;
-				if( fDist2 < fMaxSelDist2 && (nNewSelectedBrick < 0 || fDist2 < fMinDist2 ) )
-				{
-					fMinDist2 = fDist2;
-					nNewSelectedBrick = i;
-				}
-			}
-			if( nNewSelectedBrick != nSelectedBrick )
-			{
-				fJumpEffectZ = 0;
-				nSelectedBrick = nNewSelectedBrick;
-				if (nSelectedBrick != -1)
-					c_sBrick.SetValue((float)bricks[nSelectedBrick].type);
-			}
-		}
-		fJumpEffectZ += PI * dt;
-	}
-	else
-	{
-		float fPlatX0 = fPlatX;
-		if (bKeys[VK_RIGHT])
-			fPlatX = min(fLevelSpanX - fPlatW / 2, fPlatX + fPlatV * dt);
-		else if (bKeys[VK_LEFT])
-			fPlatX = max(-fLevelSpanX + fPlatW / 2, fPlatX - fPlatV * dt);
-		fBallA += fBallRotation * dt;
-		int nLastCollision = -1;
-		float d = fBallSpeed * dt, fNewBallX, fNewBallY;
-		for (;;)
-		{
-			float dx = fBallDirX * d, dy = fBallDirY * d;
-			float fBallXc = fBallX + 0.5f * dx, fBallYc = fBallY + 0.5f * dy;
-			fNewBallX = fBallX + dx;
-			fNewBallY = fBallY + dy;
-			if (!bValidSpeed)
-				break;
-			float fMinDist = fMinDistBase + 0.5f * d, fMinDist2 = fMinDist * fMinDist, colk, coll, colx, coly;
-			bool bNewCollision = false;
-			int i = 0;
-			for(; i < nBrickCount && !bNewCollision; i++)
-			{
-				Brick &brick = bricks[i];
-				if( !brick.type || nLastCollision == i )
-					continue;
-				float dxc = fBallXc - brick.x, dyc = fBallYc - brick.y;
-				if( dxc * dxc + dyc * dyc > fMinDist2 )
-					continue;
-				switch( brick.type )
-				{
-				case 1:
-				case 3:
-					if( dx * (fBallX - brick.x) + dy * (fBallY - brick.y) < 0 && IntersectSegmentCircle2D(fBallX, fBallY, fNewBallX, fNewBallY, brick.x, brick.y, fMinDistBall, &colk) )
-					{
-						colx = brick.x;
-						coly = brick.y;
-						bNewCollision = true;
-						brick.type = 0;
-					}
-					break;
-				case 2:
-					{
-						const float xc = brick.x, yc = brick.y;
-						// first test collision with each box side
-						for(int j = 0; j < 4; j++)
-						{
-							auto fSeg = fBoxSeg[j];
-							if( dx * fSeg[0][0] + dy * fSeg[0][1] > 0 )
-								continue;
-							float
-								fSegX1 = xc + fSeg[1][0],
-								fSegY1 = yc + fSeg[1][1],
-								fSegX2 = xc + fSeg[2][0],
-								fSegY2 = yc + fSeg[2][1];
-							if( IntersectSegmentSegment2D(
-								fBallX, fBallY, fNewBallX, fNewBallY,
-								fSegX1, fSegY1, fSegX2, fSegY2,
-								&colk, &coll) )
-							{
-								colx = fSegX1 + fSeg[4][0] + (fSegX2 - fSegX1) * coll;
-								coly = fSegY1 + fSeg[4][1] + (fSegY2 - fSegY1) * coll;
-								bNewCollision = true;
-								brick.type = 3;
-								break;
-							}
-						}
-						// if no side is hit, test collision with each box corner
-						if( !bNewCollision )
-						{
-							for(int j = 0; j < 4; j++)
-							{
-								auto fCenter = fBoxSeg[j][3];
-								float xco = xc + fCenter[0], yco = yc + fCenter[1];
-								if( dx * (fBallX - xco) + dy * (fBallY - yco) >= 0 )
-									continue;
-								if( IntersectSegmentCircle2D(
-									fBallX, fBallY, fNewBallX, fNewBallY,
-									xco, yco,
-									fBallR, &colk) )
-								{
-									colx = xco;
-									coly = yco;
-									bNewCollision = true;
-									brick.type = 3;
-									break;
-								}
-							}
-						}
-					}
-					break;
-				}
-			}
-			if (!bNewCollision && nLastCollision != i && dy < 0)
-			{
-				float fPlatSpan = (fPlatW + abs(fPlatX - fPlatX0)) / 2;
-				float fMinPlatDist = fBallR + 0.5f * d + fPlatSpan;
-				float fPlatXc = (fPlatX + fPlatX0) / 2;
-				float dxc = fBallXc - fPlatXc, dyc = fBallYc - fPlatY;
-				if (dxc * dxc + dyc * dyc <= fMinPlatDist * fMinPlatDist)
-				{
-					if (IntersectSegmentSegment2D(
-						fBallX, fBallY, fNewBallX, fNewBallY,
-						fPlatXc - fPlatSpan, fPlatY + fBallR, fPlatXc + fPlatSpan, fPlatY + fBallR,
-						&colk, &coll))
-					{
-						colx = fPlatXc - fPlatSpan + 2 * fPlatSpan * coll;
-						coly = fPlatY;
-						bNewCollision = true;
-					}
-					else if (IntersectSegmentCircle2D(
-						fBallX, fBallY, fNewBallX, fNewBallY,
-						fPlatXc - fPlatSpan, fPlatY,
-						fBallR, &colk))
-					{
-						colx = fPlatXc - fPlatSpan;
-						coly = fPlatY;
-						bNewCollision = true;
-					}
-					else if (IntersectSegmentCircle2D(
-						fBallX, fBallY, fNewBallX, fNewBallY,
-						fPlatXc + fPlatSpan, fPlatY,
-						fBallR, &colk))
-					{
-						colx = fPlatXc + fPlatSpan;
-						coly = fPlatY;
-						bNewCollision = true;
-					}
-				}
-			}
-			if( !bNewCollision )
-				break;
-			nLastCollision = i;
-			fBallX += dx * colk;
-			fBallY += dy * colk;
-			DbgClear();
-			DbgAddVector(fBallX, fBallY, fBallZ, colx, coly, fBallZ, 0xffffffff, 0xff0000ff);
-			DbgAddCircle(fBallX, fBallY, fBallZ, fBallR, 0xff00ffff);
-
-			DbgAddVector(fBallX, fBallY, fBallZ, fBallX + fBallSpeed * fBallDirX, fBallY + fBallSpeed * fBallDirY, fBallZ, 0xffffffff);
-			DbgAddVector(fSelX, fSelY, fSelZ, fSelX + (fBallX - fSelX) / 2, fSelY + (fBallY - fSelY) / 2, fSelZ, 0xffffffff);
-			DbgAddSpline(
-				fBallX, fBallY, fBallZ,
-				fBallX + fBallSpeed * fBallDirX, fBallY + fBallSpeed * fBallDirY, fBallZ,
-				fSelX + (fBallX - fSelX) / 2, fSelY + (fBallY - fSelY) / 2, fSelZ,
-				fSelX, fSelY, fSelZ,
-				0xffffff00, 1, 0.001f);
-
-			float xn = fBallX - colx, yn = fBallY - coly;
-			float dot = fBallDirX * xn + fBallDirY * yn;
-			float len = -2 * dot / (xn * xn + yn * yn);
-			SetNewDir(fBallDirX + len * xn, fBallDirY + len * yn);
-			d *= 1 - colk;
-		}
-		fBallX = fNewBallX;
-		fBallY = fNewBallY;
-		if( fBallDirX < 0 && fBallX - fBallR <= -fLevelSpanX || fBallDirX > 0 && fBallX + fBallR >= fLevelSpanX  )
-			fBallDirX = -fBallDirX;
-		if( fBallDirY < 0 && fBallY - fBallR <= -fLevelSpanY || fBallDirY > 0 && fBallY + fBallR >= fLevelSpanY  )
-			fBallDirY = -fBallDirY;
-
-		// Particles
-		for (int loop = 0; loop < MAX_PARTICLES; loop++)                   // Loop Through All The Particles
-		{
-			auto &par = particles[loop];
-			if (par.alpha <= 0 || par.age > fParMaxAge)
-			{
-				par.age = 0;
-				par.alpha = Random(0.0f, 1.0f);
-				par.fade = Random(fParFadeMin, fParFadeMax);
-				par.resize = Random(fParResizeMin, fParResizeMax);
-				par.rotate = Random(fParRotateMin, fParRotateMax);
-				par.size = Random(fParSizeMin, fParSizeMax);
-				par.x = fParX0;
-				par.y = fParY0;
-				par.z = fParZ0;
-				float fAngle = Random(0.0f, 2*PI);
-				float fParSpeedInit = Random(fParSpeedInitMin, fParSpeedInitMax);
-				par.vx = fParSpeedX + fParSpeedInit * cosf(fAngle);
-				par.vy = fParSpeedY + fParSpeedInit * sinf(fAngle);
-				par.vz = Random(-fParSpeedInit, fParSpeedInit);
-				float *fColor = pfParColors[(loop / 100) % 12];
-				par.r = fColor[0];
-				par.g = fColor[1];
-				par.b = fColor[2];
-			}
-
-			float fSlowdown = expf(0.69314718056f * c_sSlowdown.m_slider.m_fValue);
-			float dt = fFrameInterval / fSlowdown;
-			par.x += par.vx * dt;
-			par.y += par.vy * dt;
-			par.z += par.vz * dt;
-
-			float fFriction = c_sFriction.m_slider.m_fValue;
-			par.vx += (fParAccelX - fFriction * par.vx) * dt;
-			par.vy += (fParAccelY - fFriction * par.vy) * dt;
-			par.vz += (fParAccelZ - fFriction * par.vz) * dt;
-
-			par.alpha -= par.fade * dt;
-			par.size += par.resize * dt;
-			par.angle += par.rotate * dt;
-			par.age += dt;
-		}
-	}
-}
-
-void DrawUI()
-{
-	c_container._Draw();
-}
-
 void Draw2D()
 {
 	char buff[128];
-	FORMAT(buff, "(%d, %d)", nMouseX, nMouseY);
-	font.Print(buff, (float)nWinWidth - 5, (float)nWinHeight, 0xffffffff, ALIGN_RIGHT, ALIGN_TOP);
+	FORMAT(buff, "(%d, %d)", app.nMouseX, app.nMouseY);
+	font.Print(buff, (float)app.nWinWidth - 5, (float)app.nWinHeight, 0xffffffff, ALIGN_RIGHT, ALIGN_TOP);
 	
 	FORMAT(buff, "Divs: %d, Sort: %s", nBallN, BOOL_TO_STR(bSortDraw));
-	font.Print(buff, (float)nWinWidth/2, (float)nWinHeight, 0xffffffff, ALIGN_CENTER, ALIGN_TOP);
+	font.Print(buff, (float)app.nWinWidth/2, (float)app.nWinHeight, 0xffffffff, ALIGN_CENTER, ALIGN_TOP);
 
 	lfFrameIntervals.push_back(fFrameInterval);
 	float fTimeSum = 0;
@@ -710,7 +325,7 @@ void Draw2D()
 	if (nFrames)
 	{
 		FORMAT(buff, "%.0f", nFrames / fTimeSum);
-		font.Print(buff, 5, (float)nWinHeight, 0xffffffff, ALIGN_LEFT, ALIGN_TOP);
+		font.Print(buff, 5, (float)app.nWinHeight, 0xffffffff, ALIGN_LEFT, ALIGN_TOP);
 	}
 
 	if( !bEditor && bInterface && imgBall2D )
@@ -936,7 +551,392 @@ void DrawPar()
 	}
 }
 
-void Draw()
+void Randomize()
+{
+	for (int i = 0; i < nBrickCount; i++)
+		bricks[i].type = Random(MAX_TYPE);
+}
+
+bool LoadNextLevel()
+{
+	bool bReached = strCurrentLevel == "";
+	const char *pchCurrentDir = dir.GetCurrent();
+	for(;;)
+	{
+		dir.Reset();
+		while(dir.Next())
+		{
+			auto attrib = dir.GetAttributes();
+			if( !attrib.directory && attrib.size )
+			{
+				char pchPath[MAX_PATH];
+				FORMAT(pchPath, "%s\\Data\\%s", pchCurrentDir, dir.GetData().cFileName);
+				if( bReached && LoadLevel(pchPath) )
+					return true;
+				bReached = strCurrentLevel == pchPath;
+			}
+		}
+		if( bReached )
+			return false;
+		bReached = true;
+	}
+}
+
+void Task()
+{
+}
+
+static DWORD WINAPI TaskProc(void * param)
+{
+	HANDLE hThread = GetCurrentThread();
+	SetThreadPriority(hThread, THREAD_PRIORITY_NORMAL);
+	SetThreadName("Task");
+
+	while (app.bIsProgramLooping)
+	{
+		Task();
+		evTask.Wait();
+	}
+
+	CloseHandle(hThread);
+	return 0;
+}
+
+//================================================================================================================
+
+void Application::OnInput(const Input &input)
+{
+	switch(input.eType)
+	{
+		case InputMouse:
+		{
+			const Mouse &mouse = input.mouse;
+			{
+				int x = mouse.x;
+				int y = nWinHeight - mouse.y;
+				if( !c_container._OnMousePos(x, y, mouse.lbutton) )
+				{
+					if( mouse.lbutton )
+					{
+						nNewWinX = x;
+						nNewWinY = y;
+						bNewMouse = true;
+					}
+				}
+				if( mouse.wheel )
+				{
+					fPlaneZ += 0.1f * mouse.wheel;
+					Print("fPlaneZ = %f\n", fPlaneZ);
+				}
+			}
+			break;
+		}
+		case InputKey:
+		{
+			const Keyboard &keyboard = input.keyboard;
+			if( !keyboard.repeated && keyboard.pressed )
+			{
+				switch( keyboard.code )
+				{
+				case VK_ESCAPE:
+					bInterface = !bInterface;
+					UpdateVisibility();
+					break;
+				case VK_F11:
+					ToggleFullscreen();
+					break;
+				case VK_F3:
+					ToggleEditor();
+					break;
+				case VK_F4:
+					if( keyboard.alt )
+						Terminate();
+					break;
+				case VK_F6:
+					bSortDraw = !bSortDraw;
+					break;
+				case VK_F7:
+					fPlaneZ = fPlaneZDef;
+					break;
+				case VK_UP:
+					if(keyboard.alt && nBallN < 10000)
+					{
+						nBallN++;
+						bNewBall = true;
+					}
+					break;
+				case VK_DOWN:
+					if(keyboard.alt && nBallN > 2)
+					{
+						nBallN--;
+						bNewBall = true;
+					}
+					break;
+				case VK_OEM_MINUS:
+				case VK_SUBTRACT:
+					fSimTimeCoef /= 1.5f;
+					Print("fSimTimeCoef = %f\n", fSimTimeCoef);
+					break;
+				case VK_OEM_PLUS:
+				case VK_ADD:
+					fSimTimeCoef *= 1.5f;
+					Print("fSimTimeCoef = %f\n", fSimTimeCoef);
+					break;
+				case VK_MULTIPLY:
+					fSimTimeCoef = 1;
+					Print("fSimTimeCoef = %f\n", fSimTimeCoef);
+					break;
+				}
+			}
+		}
+	}
+}
+
+void Application::Update()
+{
+	bool bUpdateSelection = bNewSelection;
+	bNewSelection = false;
+
+	float time = timer.Time();
+	float dt = (time - fLastSimTime) * fSimTimeCoef;
+	fLastSimTime = time;
+
+	if( bEditor )
+	{
+		if( bUpdateSelection )
+		{
+			int nNewSelectedBrick = -1;
+			float fMinDist2 = 0;
+			for(int i = 0; i < nBrickCount; i++)
+			{
+				const Brick &brick = bricks[i];
+				float dx = fSelX - brick.x, dy = fSelY - brick.y;
+				float fDist2 = dx * dx + dy * dy;
+				if( fDist2 < fMaxSelDist2 && (nNewSelectedBrick < 0 || fDist2 < fMinDist2 ) )
+				{
+					fMinDist2 = fDist2;
+					nNewSelectedBrick = i;
+				}
+			}
+			if( nNewSelectedBrick != nSelectedBrick )
+			{
+				fJumpEffectZ = 0;
+				nSelectedBrick = nNewSelectedBrick;
+				if (nSelectedBrick != -1)
+					c_sBrick.SetValue((float)bricks[nSelectedBrick].type);
+			}
+		}
+		fJumpEffectZ += PI * dt;
+	}
+	else
+	{
+		float fPlatX0 = fPlatX;
+		if (bKeys[VK_RIGHT])
+			fPlatX = min(fLevelSpanX - fPlatW / 2, fPlatX + fPlatV * dt);
+		else if (bKeys[VK_LEFT])
+			fPlatX = max(-fLevelSpanX + fPlatW / 2, fPlatX - fPlatV * dt);
+		fBallA += fBallRotation * dt;
+		int nLastCollision = -1;
+		float d = fBallSpeed * dt, fNewBallX, fNewBallY;
+		for (;;)
+		{
+			float dx = fBallDirX * d, dy = fBallDirY * d;
+			float fBallXc = fBallX + 0.5f * dx, fBallYc = fBallY + 0.5f * dy;
+			fNewBallX = fBallX + dx;
+			fNewBallY = fBallY + dy;
+			if (!bValidSpeed)
+				break;
+			float fMinDist = fMinDistBase + 0.5f * d, fMinDist2 = fMinDist * fMinDist, colk, coll, colx, coly;
+			bool bNewCollision = false;
+			int i = 0;
+			for(; i < nBrickCount && !bNewCollision; i++)
+			{
+				Brick &brick = bricks[i];
+				if( !brick.type || nLastCollision == i )
+					continue;
+				float dxc = fBallXc - brick.x, dyc = fBallYc - brick.y;
+				if( dxc * dxc + dyc * dyc > fMinDist2 )
+					continue;
+				switch( brick.type )
+				{
+				case 1:
+				case 3:
+					if( dx * (fBallX - brick.x) + dy * (fBallY - brick.y) < 0 && IntersectSegmentCircle2D(fBallX, fBallY, fNewBallX, fNewBallY, brick.x, brick.y, fMinDistBall, &colk) )
+					{
+						colx = brick.x;
+						coly = brick.y;
+						bNewCollision = true;
+						brick.type = 0;
+					}
+					break;
+				case 2:
+					{
+						const float xc = brick.x, yc = brick.y;
+						// first test collision with each box side
+						for(int j = 0; j < 4; j++)
+						{
+							auto fSeg = fBoxSeg[j];
+							if( dx * fSeg[0][0] + dy * fSeg[0][1] > 0 )
+								continue;
+							float
+								fSegX1 = xc + fSeg[1][0],
+								fSegY1 = yc + fSeg[1][1],
+								fSegX2 = xc + fSeg[2][0],
+								fSegY2 = yc + fSeg[2][1];
+							if( IntersectSegmentSegment2D(
+								fBallX, fBallY, fNewBallX, fNewBallY,
+								fSegX1, fSegY1, fSegX2, fSegY2,
+								&colk, &coll) )
+							{
+								colx = fSegX1 + fSeg[4][0] + (fSegX2 - fSegX1) * coll;
+								coly = fSegY1 + fSeg[4][1] + (fSegY2 - fSegY1) * coll;
+								bNewCollision = true;
+								brick.type = 3;
+								break;
+							}
+						}
+						// if no side is hit, test collision with each box corner
+						if( !bNewCollision )
+						{
+							for(int j = 0; j < 4; j++)
+							{
+								auto fCenter = fBoxSeg[j][3];
+								float xco = xc + fCenter[0], yco = yc + fCenter[1];
+								if( dx * (fBallX - xco) + dy * (fBallY - yco) >= 0 )
+									continue;
+								if( IntersectSegmentCircle2D(
+									fBallX, fBallY, fNewBallX, fNewBallY,
+									xco, yco,
+									fBallR, &colk) )
+								{
+									colx = xco;
+									coly = yco;
+									bNewCollision = true;
+									brick.type = 3;
+									break;
+								}
+							}
+						}
+					}
+					break;
+				}
+			}
+			if (!bNewCollision && nLastCollision != i && dy < 0)
+			{
+				float fPlatSpan = (fPlatW + abs(fPlatX - fPlatX0)) / 2;
+				float fMinPlatDist = fBallR + 0.5f * d + fPlatSpan;
+				float fPlatXc = (fPlatX + fPlatX0) / 2;
+				float dxc = fBallXc - fPlatXc, dyc = fBallYc - fPlatY;
+				if (dxc * dxc + dyc * dyc <= fMinPlatDist * fMinPlatDist)
+				{
+					if (IntersectSegmentSegment2D(
+						fBallX, fBallY, fNewBallX, fNewBallY,
+						fPlatXc - fPlatSpan, fPlatY + fBallR, fPlatXc + fPlatSpan, fPlatY + fBallR,
+						&colk, &coll))
+					{
+						colx = fPlatXc - fPlatSpan + 2 * fPlatSpan * coll;
+						coly = fPlatY;
+						bNewCollision = true;
+					}
+					else if (IntersectSegmentCircle2D(
+						fBallX, fBallY, fNewBallX, fNewBallY,
+						fPlatXc - fPlatSpan, fPlatY,
+						fBallR, &colk))
+					{
+						colx = fPlatXc - fPlatSpan;
+						coly = fPlatY;
+						bNewCollision = true;
+					}
+					else if (IntersectSegmentCircle2D(
+						fBallX, fBallY, fNewBallX, fNewBallY,
+						fPlatXc + fPlatSpan, fPlatY,
+						fBallR, &colk))
+					{
+						colx = fPlatXc + fPlatSpan;
+						coly = fPlatY;
+						bNewCollision = true;
+					}
+				}
+			}
+			if( !bNewCollision )
+				break;
+			nLastCollision = i;
+			fBallX += dx * colk;
+			fBallY += dy * colk;
+			DbgClear();
+
+			Point ptBall(fBallX, fBallY, fBallZ), ptColl(colx, coly, fBallZ);
+			DbgAddVector(ptBall, ptColl - ptBall, 0xffffffff, 0xff0000ff);
+			DbgAddCircle(ptBall, fBallR, 0xff00ffff);
+
+			Point
+				ptA(fBallX, fBallY, fBallZ),
+				ptB(fBallSpeed * fBallDirX, fBallSpeed * fBallDirY, 0),
+				ptC(fSelX, fSelY, fSelZ),
+				ptD((fBallX - fSelX) / 2, (fBallY - fSelY) / 2, 0);
+			DbgAddVector(ptA, ptB, 0xffffffff);
+			DbgAddVector(ptC, -ptD, 0xffffffff);
+			DbgAddSpline(ptA, ptB, ptC, ptD, 0xffffff00, 1, 0.001f);
+
+			float xn = fBallX - colx, yn = fBallY - coly;
+			float dot = fBallDirX * xn + fBallDirY * yn;
+			float len = -2 * dot / (xn * xn + yn * yn);
+			SetNewDir(fBallDirX + len * xn, fBallDirY + len * yn);
+			d *= 1 - colk;
+		}
+		fBallX = fNewBallX;
+		fBallY = fNewBallY;
+		if( fBallDirX < 0 && fBallX - fBallR <= -fLevelSpanX || fBallDirX > 0 && fBallX + fBallR >= fLevelSpanX  )
+			fBallDirX = -fBallDirX;
+		if( fBallDirY < 0 && fBallY - fBallR <= -fLevelSpanY || fBallDirY > 0 && fBallY + fBallR >= fLevelSpanY  )
+			fBallDirY = -fBallDirY;
+
+		// Particles
+		for (int loop = 0; loop < MAX_PARTICLES; loop++)                   // Loop Through All The Particles
+		{
+			auto &par = particles[loop];
+			if (par.alpha <= 0 || par.age > fParMaxAge)
+			{
+				par.age = 0;
+				par.alpha = Random(0.0f, 1.0f);
+				par.fade = Random(fParFadeMin, fParFadeMax);
+				par.resize = Random(fParResizeMin, fParResizeMax);
+				par.rotate = Random(fParRotateMin, fParRotateMax);
+				par.size = Random(fParSizeMin, fParSizeMax);
+				par.x = fParX0;
+				par.y = fParY0;
+				par.z = fParZ0;
+				float fAngle = Random(0.0f, 2*PI);
+				float fParSpeedInit = Random(fParSpeedInitMin, fParSpeedInitMax);
+				par.vx = fParSpeedX + fParSpeedInit * cosf(fAngle);
+				par.vy = fParSpeedY + fParSpeedInit * sinf(fAngle);
+				par.vz = Random(-fParSpeedInit, fParSpeedInit);
+				float *fColor = pfParColors[(loop / 100) % 12];
+				par.r = fColor[0];
+				par.g = fColor[1];
+				par.b = fColor[2];
+			}
+
+			float fSlowdown = expf(0.69314718056f * c_sSlowdown.m_slider.m_fValue);
+			float dt = fFrameInterval / fSlowdown;
+			par.x += par.vx * dt;
+			par.y += par.vy * dt;
+			par.z += par.vz * dt;
+
+			float fFriction = c_sFriction.m_slider.m_fValue;
+			par.vx += (fParAccelX - fFriction * par.vx) * dt;
+			par.vy += (fParAccelY - fFriction * par.vy) * dt;
+			par.vz += (fParAccelZ - fFriction * par.vz) * dt;
+
+			par.alpha -= par.fade * dt;
+			par.size += par.resize * dt;
+			par.angle += par.rotate * dt;
+			par.age += dt;
+		}
+	}
+}
+
+void Application::Draw()
 {
 	float time = timer.Time();
 	fFrameInterval = time - fLastFrameTime;
@@ -996,43 +996,28 @@ void Draw()
 	glLoadIdentity();
 	Draw2D();
 	glLoadIdentity();
-	DrawUI();
+	c_container._Draw();
 	glPopAttrib();
 }
 
-void Randomize()
+void Application::Destroy()
 {
-	for (int i = 0; i < nBrickCount; i++)
-		bricks[i].type = Random(MAX_TYPE);
+	evTask.Signal();
 }
 
-bool LoadNextLevel()
+BOOL Application::Create()
 {
-	bool bReached = strCurrentLevel == "";
-	const char *pchCurrentDir = dir.GetCurrent();
-	for(;;)
+	nLeft = 200;
+	nTop = 100;
+	nWinWidth = 800;
+	nWinHeight = 600;
+
+	if( !CreateThread(NULL, 0, TaskProc, NULL, 0, NULL) )
 	{
-		dir.Reset();
-		while(dir.Next())
-		{
-			auto attrib = dir.GetAttributes();
-			if( !attrib.directory && attrib.size )
-			{
-				char pchPath[MAX_PATH];
-				FORMAT(pchPath, "%s\\Data\\%s", pchCurrentDir, dir.GetData().cFileName);
-				if( bReached && LoadLevel(pchPath) )
-					return true;
-				bReached = strCurrentLevel == pchPath;
-			}
-		}
-		if( bReached )
-			return false;
-		bReached = true;
+		Message("Failed to start the task thread!");
+		return FALSE;
 	}
-}
 
-void Init()
-{
 	const char *pchCurrentDir = dir.GetCurrent();
 	dir.Set("Art", "tga");
 	while(dir.Next())
@@ -1097,7 +1082,7 @@ void Init()
 	c_bExit.m_nBackColor = 0xff00cccc;
 	c_bExit.m_nOverColor = 0xff00ffff;
 	c_bExit.m_nClickColor = 0xffccffff;
-	c_bExit.m_pOnClick = Terminate;
+	c_bExit.m_pOnClick = _Terminate;
 	c_bExit.m_bAutoSize = true;
 	c_bExit.CopyTo(c_cbFullscreen);
 	c_bExit.CopyTo(c_bLoad);
@@ -1115,7 +1100,7 @@ void Init()
 	c_cbFullscreen.m_nBottom = 40;
 	c_cbFullscreen.m_strText = "Fullscreen";
 	c_cbFullscreen.m_nCheckColor = 0xffccffcc;
-	c_cbFullscreen.m_pOnClick = ToggleFullscreen;
+	c_cbFullscreen.m_pOnClick = _ToggleFullscreen;
 	c_cbFullscreen.CopyTo(c_cbGeometry);
 
 	c_cbGeometry.m_nBottom = 70;
@@ -1228,22 +1213,11 @@ void Init()
 
 	LoadNextLevel();
 	// Randomize();
+
+	return TRUE;
 }
 
-void Reshape()
-{
-	glViewport(0, 0, nWinWidth, nWinHeight);
-	glScissor(0, 0, nWinWidth, nWinHeight);
-	c_container._AdjustSize(nWinWidth, nWinHeight);
-}
-
-void Redraw()
-{
-	Draw();
-	SwapBuffers(hDC);
-}
-
-BOOL glCreate()
+BOOL Application::glCreate()
 {
 	// Enable transparent colors
 	glEnable(GL_BLEND);
@@ -1298,7 +1272,7 @@ BOOL glCreate()
 	return TRUE;
 }
 
-void glDestroy()
+void Application::glDestroy()
 {
 	dlBall.Destroy();
 	dlBrickBall.Destroy();
@@ -1311,375 +1285,8 @@ void glDestroy()
 
 //================================================================================================================
 
-void InitWindow()
-{
-	nStyle = WS_OVERLAPPEDWINDOW;
-	nExtStyle = WS_EX_APPWINDOW;
-	if(bCreateFullScreen)
-	{
-		DEVMODE dmScreenSettings;								// Device Mode
-		ZeroMemory(&dmScreenSettings, sizeof(dmScreenSettings));						// Make Sure Memory Is Cleared
-		dmScreenSettings.dmSize				= sizeof (DEVMODE);	// Size Of The Devmode Structure
-		dmScreenSettings.dmPelsWidth		= nDisplayWidth;			// Select Screen Width
-		dmScreenSettings.dmPelsHeight		= nDisplayHeight;			// Select Screen Height
-		dmScreenSettings.dmBitsPerPel		= nBpp;				// Select Bits Per Pixel
-		dmScreenSettings.dmFields			= DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;
-		if( ChangeDisplaySettings (&dmScreenSettings, CDS_FULLSCREEN) == DISP_CHANGE_SUCCESSFUL )
-		{
-			// Seting Top Window To Be Covering Everything Else
-			nStyle = WS_POPUP;										
-			nExtStyle |= WS_EX_TOPMOST;
-			nLastLeft = nLeft;
-			nLastTop = nTop;
-			nLeft = 0;
-			nTop = 0;
-			nWinWidth = nDisplayWidth;
-			nWinHeight = nDisplayHeight;
-		}
-		else
-		{
-			Message("Mode Switch Failed!\nCannot Use That Resolution: %d:%d:%d\n", 
-					nDisplayWidth, nDisplayHeight, nBpp);
-			bCreateFullScreen = FALSE;
-		}
-	}
-	else if( nLastLeft || nLastTop )
-	{
-		nLeft = nLastLeft;
-		nTop = nLastTop;
-	}
-	RECT winRect = { nLeft, nTop, nLeft + nWinWidth, nTop + nWinHeight };
-	if(!bCreateFullScreen)// Adjust Window, Account For Window Borders
-		AdjustWindowRectEx (&winRect, nStyle, 0, nExtStyle);
-	rect = winRect;
-	bFullscreen = bCreateFullScreen;
-}
-
-BOOL CreateNewWindow()
-{
-	InitWindow();
-	hWnd = CreateWindowEx ( nExtStyle, 						// Extended Style
-							pchName, 								// Class Name
-							pchName, 						// Window Title
-							nStyle, 						// Window Style
-							max(0, rect.left), // Window X Position
-							max(0, rect.top), 	// Window Y Position
-							rect.right - rect.left, 	// Window Width
-							rect.bottom - rect.top, 	// Window Height
-							HWND_DESKTOP, 						
-							0, 									// No Menu
-							hInst, 								
-							NULL);
-	if (hWnd)												
-	{
-		hDC = GetDC (hWnd);
-		if (hDC)	
-		{
-			PIXELFORMATDESCRIPTOR pfd =	
-			{
-				sizeof (PIXELFORMATDESCRIPTOR), 
-				1, 							// Version Number
-				PFD_DRAW_TO_WINDOW|PFD_SUPPORT_OPENGL|PFD_DOUBLEBUFFER, 
-				PFD_TYPE_RGBA, 
-				nBpp, 
-				0, 0, 0, 0, 0, 0, 			// Color Bits Ignored
-				0, 							// No Alpha Buffer
-				0, 							// Shift Bit Ignored
-				0, 							// No Accumulation Buffer
-				0, 0, 0, 0, 					// Accumulation Bits Ignored
-				nDepth, 				// Z-Buffer (Depth Buffer)
-				nStencil, 			// Stencil Buffer
-				0, 							// No Auxiliary Buffer
-				PFD_MAIN_PLANE, 				// Main Drawing Layer
-				0, 							// Reserved
-				0, 0, 0						// Layer Masks Ignored
-			};
-			int pf = ChoosePixelFormat (hDC, &pfd);
-			if (pf && SetPixelFormat(hDC, pf , &pfd))
-			{
-				hRC = wglCreateContext(hDC);
-				if(hRC)
-				{
-					if (wglMakeCurrent(hDC, hRC))
-						return TRUE;
-					wglDeleteContext (hRC);
-					hRC = 0;	
-				}
-			}
-			ReleaseDC (hWnd, hDC);
-			hDC = NULL;
-		}
-		DestroyWindow (hWnd);
-		hWnd = NULL;
-	}
-	return FALSE;
-}
-
-BOOL DestroyWindow()
-{
-	if (hWnd)													// Does The Window Have A Handle?
-	{	
-		if (hDC)													// Does The Window Have A Device Context?
-		{
-			wglMakeCurrent (hDC, NULL);							// Set The Current Active Rendering Context To Zero
-			if (hRC)												// Does The Window Have A Rendering Context?
-			{
-				wglDeleteContext (hRC);							// Release The Rendering Context
-				hRC = NULL;										// Zero The Rendering Context
-			}
-			ReleaseDC (hWnd, hDC);						// Release The Device Context
-			hDC = NULL;											// Zero The Device Context
-		}
-		DestroyWindow (hWnd);									// Destroy The Window
-		hWnd = NULL;												// Zero The Window Handle
-	}
-	if (bFullscreen)												// Is Window In Fullscreen Mode
-		ChangeDisplaySettings (NULL, 0);									// Switch Back To Desktop Resolution
-	ShowCursor(TRUE);													// Show The Cursor
-	return TRUE;														// Return True
-}
-
-void OnNewInput(const Input &input)
-{
-	Lock lock(csInput);
-	dInput.push_back(input);
-}
-
-LRESULT CALLBACK WinProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-	switch (uMsg)
-	{
-		case WM_SYSCOMMAND:
-		{
-			switch (wParam)												// Check System Calls
-			{
-				case SC_SCREENSAVE:	
-				case SC_MONITORPOWER:
-					return 0;
-			}
-			break;
-		}
-		case WM_CLOSE:													// Closing The Window
-		{
-			Terminate();
-			return 0;
-		}
-		case WM_PAINT:
-		{
-			// Redraw();
-			break;
-		}
-		case WM_MOVE:
-		{
-			nLeft = LOWORD(lParam);   // horizontal position 
-			nTop = HIWORD(lParam);   // vertical position
-			return 0;
-		}
-		case WM_SIZE:
-		{
-			switch (wParam)
-			{
-				case SIZE_MINIMIZED:
-				{
-					bVisible = FALSE;
-				}
-				return 0;
-				case SIZE_MAXIMIZED:
-				case SIZE_RESTORED:
-				{
-					bVisible = TRUE;
-					nWinWidth = LOWORD (lParam);
-					nWinHeight = HIWORD (lParam);
-					Reshape();
-				}
-				return 0;
-			}
-			break;
-		}
-		case WM_TOGGLEFULLSCREEN:
-		{
-			ToggleFullscreen();
-			break;
-		}
-		case WM_CHAR:
-		case WM_DEADCHAR:
-		case WM_SYSDEADCHAR:
-		case WM_SYSCHAR:
-		{
-			Input input = {uMsg, InputChar};
-			input.nSymbol = (SHORT)wParam;
-			OnNewInput(input);
-			return 0;
-		}
-		case WM_SYSKEYDOWN:
-		case WM_SYSKEYUP:
-		case WM_KEYDOWN:
-		case WM_KEYUP:
-		{
-			BYTE code = (BYTE)wParam;
-			BOOL pressed = !GET_BIT((DWORD)lParam, 31);
-			bKeys[code] = pressed;
-
-			Input input = {uMsg, InputKey};
-			input.keyboard.code = code;
-			input.keyboard.repeatCount = (SHORT)GET_BITS((DWORD)lParam, 0, 15);
-			input.keyboard.scanCode = (BYTE)GET_BITS((DWORD)lParam, 16, 23);
-			input.keyboard.extendKey = GET_BIT((DWORD)lParam, 24);
-			input.keyboard.alt = GET_BIT((DWORD)lParam, 29);
-			input.keyboard.repeated = GET_BIT((DWORD)lParam, 30);
-			input.keyboard.pressed = pressed;
-			OnNewInput(input);
-
-			return 0;
-		}
-		case WM_MOUSEMOVE:
-		case WM_RBUTTONDBLCLK:
-		case WM_RBUTTONDOWN:
-		case WM_RBUTTONUP:
-		case WM_LBUTTONDBLCLK:
-		case WM_LBUTTONDOWN:
-		case WM_LBUTTONUP:
-		case WM_MBUTTONDBLCLK:
-		case WM_MBUTTONDOWN:
-		case WM_MBUTTONUP:
-		case WM_MOUSEACTIVATE:
-		case WM_MOUSEWHEEL:
-		{
-			WORD x = LOWORD(lParam);
-			WORD y = HIWORD(lParam);
-			nMouseX = x;
-			nMouseY = nWinHeight - y;
-
-			Input input = {uMsg, InputMouse};
-			input.mouse.x = x;
-			input.mouse.y = y;
-			input.mouse.wheel = ((short)HIWORD(wParam))/WHEEL_DELTA;			// wheel rotation
-			input.mouse.lbutton = (wParam&MK_LBUTTON) != 0;
-			input.mouse.mbutton = (wParam&MK_MBUTTON) != 0;
-			input.mouse.rbutton = (wParam&MK_RBUTTON) != 0;
-			input.mouse.shift = (wParam&MK_SHIFT) != 0;
-			input.mouse.ctrl = (wParam&MK_CONTROL) != 0;
-			OnNewInput(input);
-
-			return 0;
-		}
-	}
-	return DefWindowProc(hWnd, uMsg, wParam, lParam);
-}
-
-void Task()
-{
-}
-
-static DWORD WINAPI TaskProc(void * param)
-{
-	HANDLE hThread = GetCurrentThread();
-	SetThreadPriority(hThread, THREAD_PRIORITY_NORMAL);
-	SetThreadName("Task");
-
-	while (bIsProgramLooping)
-	{
-		Task();
-		evTask.Wait();
-	}
-
-	CloseHandle(hThread);
-	return 0;
-}
-
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLine, int nCmdShow)
 {
-	InitRandGen();
-
-	hInst = hInstance;
-	pchCmdLine = lpCmdLine;
-	nShow = nCmdShow;
-	
-	LPTSTR pchName = "Arkanoid";
-	HCURSOR hCursor = LoadCursor(NULL, IDC_ARROW);
-
-	SetThreadName("Render");
-
-	if (!hPrevInstance)
-	{
-		WNDCLASSEX windowClass;
-		ZeroMemory (&windowClass, sizeof (WNDCLASSEX));
-		windowClass.cbSize			 =  sizeof (WNDCLASSEX);
-		windowClass.style			 =  CS_HREDRAW|CS_VREDRAW|CS_OWNDC|CS_DBLCLKS;
-		windowClass.lpfnWndProc		 =  (WNDPROC) WinProc;
-		windowClass.hInstance		 =  hInstance;
-		windowClass.hbrBackground	 =  (HBRUSH)(COLOR_APPWORKSPACE);
-		windowClass.hCursor			 =  hCursor;
-		windowClass.lpszClassName	 =  pchName;
-		if( !RegisterClassEx (&windowClass) )
-		{
-			Message("Register Class '%s' Failed!", pchName);
-			return -1;
-		}
-	}
-
-	Init();
-
-	if( !CreateThread(NULL, 0, TaskProc, NULL, 0, NULL) )
-	{
-		Message("Failed to start the task thread!");
-		return -1;
-	}
-
-	while (bIsProgramLooping)
-	{
-		if (CreateNewWindow())
-		{
-			if (!glCreate())
-			{
-				Terminate();
-			}
-			else
-			{
-				ShowWindow(hWnd, nShow);
-				for(;;)
-				{
-					MSG msg; // Message Info
-					if(PeekMessage(&msg, hWnd, 0, 0, PM_REMOVE) != 0)
-					{
-						if (msg.message == WM_QUIT)
-						{
-							evTask.Signal();
-							break;
-						}
-						TranslateMessage(&msg);
-						DispatchMessage(&msg);
-						continue;
-					}
-
-					Update();
-
-					if( bVisible )
-					{
-						Redraw();
-					}
-					else if(bAllowSleep)
-					{
-						WaitMessage();
-						continue;
-					}
-					if(bAllowYield)
-					{
-						Sleep(0);
-					}
-				}
-			}	
-			glDestroy();
-			DestroyWindow();
-		}
-		else
-		{
-			Message("Error Creating Window!");
-			bIsProgramLooping = FALSE;
-		}
-	}
-
-	UnregisterClass(pchName, hInstance);
-
+	app.Main(hInstance, hPrevInstance, lpCmdLine, nCmdShow);
 	return 0;
 }

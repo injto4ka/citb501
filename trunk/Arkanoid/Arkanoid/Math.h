@@ -13,6 +13,7 @@ struct Point
 	float Dist2(const Point &pt) const { float dx = x - pt.x, dy = y - pt.y, dz = z - pt.z; return dx * dx + dy * dy + dz * dz; }
 	Point Normalize() const { float l2 = Len2(); ASSERT(l2 != 0); float r = 1 / sqrtf(l2); return Point(x * r, y * r, z * r); }
 	float Angle(const Point &pt) const { float l2 = Len2() * pt.Len2(); ASSERT( l2 != 0 ); return (180 / PI) * acosf(Dot(pt) / sqrtf(l2)); }
+	Point operator -() const {  return Point(-x, -y, -z); }
 };
 
 inline Point operator +(const Point &pt1, const Point &pt2) { return Point(pt1.x + pt2.x, pt1.y + pt2.y, pt1.z + pt2.z); }

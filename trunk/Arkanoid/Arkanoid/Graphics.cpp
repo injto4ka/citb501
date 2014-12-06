@@ -1,6 +1,9 @@
 #include "graphics.h"
 #include <algorithm>
 
+#pragma comment( lib, "opengl32.lib" )				// Search For OpenGL32.lib While Linking
+#pragma comment( lib, "glu32.lib" )					// Search For GLu32.lib While Linking
+
 ErrorCode glErrorToStr()
 {
 	switch(glGetError())
@@ -151,7 +154,7 @@ ErrorCode Texture::Create(const Image &image)
 	if(!image.GetDataSize())
 		return "No image data!";
 	GLuint format = image.GetPixelFormat();
-	GLint width = image.GetWidth();
+	GLint fWidth = image.GetWidth();
 	GLint height = image.GetHeight();
 	const char *data = image.GetDataPtr();
 
@@ -166,10 +169,10 @@ ErrorCode Texture::Create(const Image &image)
 	{
 		gluBuild2DMipmaps(
 			GL_TEXTURE_2D,	// 2D image
-			components,	    // number of color components
-			width,			// width
+			components,	    // number of nColor components
+			fWidth,			// fWidth
 			height,			// height
-			format,			// color model
+			format,			// nColor model
 			GL_UNSIGNED_BYTE, // data word type
 			data);			// data
 	}
@@ -178,11 +181,11 @@ ErrorCode Texture::Create(const Image &image)
 		glTexImage2D(
 			GL_TEXTURE_2D,	// 2D image
 			levelDetail,	// detail level
-			components,		// number of color components
-			width,			// width
+			components,		// number of nColor components
+			fWidth,			// fWidth
 			height,			// height
 			border,			// border
-			format,			// color model
+			format,			// nColor model
 			GL_UNSIGNED_BYTE, // data word type
 			data);			// data
 	}
@@ -396,29 +399,29 @@ GLvoid DrawSphere(float R, int nDivs)
 }
 
 GLvoid DrawCircle3D(
-		float xc, float yc, float zc, float radius, int color,
+		float xc, float yc, float zc, float fRadius, int nColor,
 		float xn, float yn, float zn,
-		float line, int divs)
+		float line, int nDivs)
 {
 	glPushMatrix();
 	glPushAttrib(GL_LINE_BIT | GL_CURRENT_BIT);
-	if(color)
-		SetColor(color);
+	if(nColor)
+		SetColor(nColor);
 	if(line)
 		glLineWidth(line);
 	glTranslatef(xc, yc, zc);
 	glBegin(GL_LINE_STRIP);
 
-	Quaternion q(Point(0, 0, 1), 360.0f / divs, true);
-	glVertex3f( radius, 0, 0 );
+	Quaternion q(Point(0, 0, 1), 360.0f / nDivs, true);
+	glVertex3f( fRadius, 0, 0 );
 
-	Point pt(radius, 0, 0);
-	for(int i = 1; i < divs; i++)
+	Point pt(fRadius, 0, 0);
+	for(int i = 1; i < nDivs; i++)
 	{
 		pt = q * pt;
 		glVertex3f( pt.x, pt.y, pt.z );
 	}
-	glVertex3f( radius, 0, 0 );
+	glVertex3f( fRadius, 0, 0 );
 
 	glEnd();
 	glPopAttrib();
@@ -426,22 +429,22 @@ GLvoid DrawCircle3D(
 }
 
 GLvoid DrawSpline3D(
-		const Point *coefs, int color,
-		float line, int divs)
+		const Point *coefs, int nColor,
+		float line, int nDivs)
 {
 	glPushAttrib(GL_LINE_BIT | GL_CURRENT_BIT);
-	if(color)
-		SetColor(color);
+	if(nColor)
+		SetColor(nColor);
 	if(line)
 		glLineWidth(line);
 	glBegin(GL_LINE_STRIP);
 
 	Point pt = SplinePos(coefs, 0);
 	glVertex3f( pt.x, pt.y, pt.z );
-	if( divs > 2 )
+	if( nDivs > 2 )
 	{
-		float k = 1.0f / (divs - 1);
-		for(int i = 1; i < divs - 1; i++)
+		float k = 1.0f / (nDivs - 1);
+		for(int i = 1; i < nDivs - 1; i++)
 		{
 			pt = SplinePos(coefs, i * k);
 			glVertex3f( pt.x, pt.y, pt.z );
@@ -456,74 +459,74 @@ GLvoid DrawSpline3D(
 
 void DrawBox(
 		float left, float top,
-		float width, float height,
-		DWORD color,
+		float fWidth, float height,
+		DWORD nColor,
 		float line)
 {
 	glPushAttrib(GL_LINE_BIT | GL_CURRENT_BIT);
-	if(color)
-		SetColor(color);
+	if(nColor)
+		SetColor(nColor);
 	if(line)
 		glLineWidth(line);
 	glBegin(GL_LINE_STRIP);
 		glVertex2f( left, top);
 		glVertex2f( left, top+height);
-		glVertex2f( left+width, top+height);
-		glVertex2f( left+width, top);
+		glVertex2f( left+fWidth, top+height);
+		glVertex2f( left+fWidth, top);
 		glVertex2f( left, top);
 	glEnd();
 	glPopAttrib();
 }
 void FillBox(
 		float left, float top,
-		float width, float height,
-		DWORD color)
+		float fWidth, float height,
+		DWORD nColor)
 {
 	glPushAttrib(GL_CURRENT_BIT);
-	if(color)
-		SetColor(color);
+	if(nColor)
+		SetColor(nColor);
 	glBegin(GL_QUADS);
 		glVertex2f( left, top);
 		glVertex2f( left, top+height);
-		glVertex2f( left+width, top+height);
-		glVertex2f( left+width, top);
+		glVertex2f( left+fWidth, top+height);
+		glVertex2f( left+fWidth, top);
 	glEnd();
 	glPopAttrib();
 }
 
 void DrawBox(
 	int left, int top,
-	int width, int height,
-	DWORD color,
+	int fWidth, int height,
+	DWORD nColor,
 	float line)
 {
 	glPushAttrib(GL_LINE_BIT | GL_CURRENT_BIT);
-	if (color)
-		SetColor(color);
+	if (nColor)
+		SetColor(nColor);
 	if (line)
 		glLineWidth(line);
 	glBegin(GL_LINE_STRIP);
 	glVertex2i(left, top);
 	glVertex2i(left, top + height);
-	glVertex2i(left + width, top + height);
-	glVertex2i(left + width, top);
+	glVertex2i(left + fWidth, top + height);
+	glVertex2i(left + fWidth, top);
 	glVertex2i(left, top);
 	glEnd();
 	glPopAttrib();
 }
 void FillBox(
 	int left, int top,
-	int width, int height,
-	DWORD color)
+	int fWidth, int height,
+	DWORD nColor)
 {
 	glPushAttrib(GL_CURRENT_BIT);
-	if (color)
-		SetColor(color);
+	if (nColor)
+		SetColor(nColor);
 	glBegin(GL_QUADS);
 	glVertex2i(left, top);
 	glVertex2i(left, top + height);
-	glVertex2i(left + width, top + height);
-	glVertex2i(left + width, top);
+	glVertex2i(left + fWidth, top + height);
+	glVertex2i(left + fWidth, top);
 	glEnd();
 	glPopAttrib();
 }
@@ -625,25 +628,18 @@ void DbgClear()
 
 struct DbgVector: DbgObject
 {
-	float
-		x1, y1, z1,
-		x2, y2, z2,
-		width;
-	int color1, color2;
-	DbgVector(
-		float x1, float y1, float z1,
-		float x2, float y2, float z2,
-		int color1, int color2, float width):
-			x1(x1), y1(y1), z1(z1),
-			x2(x2), y2(y2), z2(z2),
-			width(width), color1(color1), color2(color2)
+	float m_fWidth;
+	int m_nColor1, m_nColor2;
+	Point m_pt1, m_pt2;
+	DbgVector(Point ptPos, Point ptDir, int nColor1, int nColor2, float fWidth):
+		m_pt1(ptPos), m_pt2(ptPos + ptDir), m_fWidth(fWidth), m_nColor1(nColor1), m_nColor2(nColor2)
 	{}
 	virtual void Draw() const
 	{
 		DrawLine3D(
-			x1, y1, z1,
-			x2, y2, z2,
-			color1, color2, width);
+			m_pt1.x, m_pt1.y, m_pt1.z,
+			m_pt2.x, m_pt2.y, m_pt2.z,
+			m_nColor1, m_nColor2, m_fWidth);
 	}
 	virtual int Type() const
 	{
@@ -651,40 +647,26 @@ struct DbgVector: DbgObject
 	}
 };
 
-void DbgAddVector(
-	float x1, float y1, float z1,
-	float x2, float y2, float z2,
-	int color1, int color2, float width)
+void DbgAddVector(Point ptPos, Point ptDir, int nColor1, int nColor2, float fWidth)
 {
-	DbgAdd(new DbgVector(
-		x1, y1, z1,
-		x2, y2, z2,
-		color1, color2, width));
+	DbgAdd(new DbgVector(ptPos, ptDir, nColor1, nColor2, fWidth));
 }
 
 struct DbgCircle: DbgObject
 {
-	float
-		xc, yc, zc, radius,
-		xn, yn, zn,
-		width;
-	int color, divs;
-	DbgCircle(
-		float xc, float yc, float zc,
-		float radius, int color,
-		float xn, float yn, float zn,
-		float width, int divs):
-			xc(xc), yc(yc), zc(zc),
-			radius(radius), color(color),
-			xn(xn), yn(yn), zn(zn),
-			width(width), divs(divs)
+	Point m_ptCenter, m_ptNormal;
+	float m_fRadius, m_fWidth;
+	int m_nColor, m_nDivs;
+	DbgCircle(Point ptCenter, float fRadius, int nColor, Point ptNormal, float fWidth, int nDivs):
+		m_ptCenter(ptCenter), m_fRadius(fRadius), m_nColor(nColor), m_ptNormal(ptNormal), m_fWidth(fWidth), m_nDivs(nDivs)
 	{}
 	virtual void Draw() const
 	{
 		DrawCircle3D(
-			xc, yc, zc, radius, color,
-			xn, yn, zn,
-			width, divs);
+			m_ptCenter.x, m_ptCenter.y, m_ptCenter.z,
+			m_fRadius, m_nColor,
+			m_ptNormal.x, m_ptNormal.y, m_ptNormal.z,
+			m_fWidth, m_nDivs);
 	}
 	virtual int Type() const
 	{
@@ -692,49 +674,34 @@ struct DbgCircle: DbgObject
 	}
 };
 
-void DbgAddCircle(
-	float xc, float yc, float zc,
-	float radius, int color,
-	float xn, float yn, float zn,
-	float width, int divs)
+void DbgAddCircle(Point ptCenter, float fRadius, int nColor, Point ptNormal, float fWidth, int nDivs)
 {
-	DbgAdd(new DbgCircle(
-		xc, yc, zc, radius, color,
-		xn, yn, zn,
-		width, divs));
+	DbgAdd(new DbgCircle(ptCenter, fRadius, nColor, ptNormal, fWidth, nDivs));
 }
 
 struct DbgSpline: DbgObject
 {
-	int steps, color;
-	float width;
-	Point coef[4];
+	int m_nDivs, m_nColor;
+	float m_fWidth;
+	Point m_coefs[4];
 	
 	DbgSpline(
-		float x1, float y1, float z1,
-		float x2, float y2, float z2,
-		float x3, float y3, float z3,
-		float x4, float y4, float z4,
-		int color, float width,
-		float step, int steps):
-			color(color), width(width), steps(steps)
+		Point ptPos1, Point ptDir1, Point ptPos2, Point ptDir2,
+		int nColor, float fWidth,
+		float fStep, int nDivs):
+			m_nColor(nColor), m_fWidth(fWidth), m_nDivs(nDivs)
 	{
-		Point pt[] = {
-			Point(x1, y1, z1),
-			Point(x2, y2, z2),
-			Point(x3, y3, z3),
-			Point(x4, y4, z4),
-		};
-		if( step )
+		Point pt[] = {ptPos1, ptPos1 + ptDir1, ptPos2 - ptDir2, ptPos2};
+		if( fStep )
 		{
 			float len = SplineLenEst(pt);
-			steps = 1 + Trunc(len / step);
+			m_nDivs = 1 + Trunc(len / fStep);
 		}
-		SplineCoefs(pt, coef);
+		SplineCoefs(pt, m_coefs);
 	}
 	virtual void Draw() const
 	{
-		DrawSpline3D(coef, color, width, steps);
+		DrawSpline3D(m_coefs, m_nColor, m_fWidth, m_nDivs);
 	}
 	virtual int Type() const
 	{
@@ -742,21 +709,9 @@ struct DbgSpline: DbgObject
 	}
 };
 
-void DbgAddSpline(
-	float x1, float y1, float z1,
-	float x2, float y2, float z2,
-	float x3, float y3, float z3,
-	float x4, float y4, float z4,
-	int color, float width,
-	float step, int steps)
+void DbgAddSpline(Point ptPos1, Point ptDir1, Point ptPos2, Point ptDir2, int nColor, float fWidth, float fStep, int nDivs)
 {
-	DbgAdd(new DbgSpline(
-		x1, y1, z1,
-		x2, y2, z2,
-		x3, y3, z3,
-		x4, y4, z4,
-		color, width,
-		step, steps));
+	DbgAdd(new DbgSpline(ptPos1, ptDir1, ptPos2, ptDir2, nColor, fWidth, fStep, nDivs));
 }
 
 #endif _DEBUG 
