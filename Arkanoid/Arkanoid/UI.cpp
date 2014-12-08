@@ -311,6 +311,8 @@ void Control::CopyTo(Control& other) const
 	other.m_bDisabled = m_bDisabled;
 	other.m_bAutoSize = m_bAutoSize;
 	other.m_nZ = m_nZ;
+	other.m_nAnchorRight = m_nAnchorRight;
+	other.m_nAnchorTop = m_nAnchorTop;
 }
 void Control::SetAnchor(int nRight, int nTop)
 {

@@ -215,12 +215,10 @@ GLvoid DrawLine3D(
 	float x2, float y2, float z2,
 	int c1, int c2, float w)
 {
-	glPushAttrib(GL_ENABLE_BIT | GL_LINE_BIT | GL_HINT_BIT | GL_CURRENT_BIT);
+	glPushAttrib(GL_ENABLE_BIT | GL_LINE_BIT | GL_CURRENT_BIT);
 	glDisable(GL_LIGHTING);
 	glDisable(GL_TEXTURE_2D);
 	glLineWidth(w);
-	glEnable(GL_LINE_SMOOTH);
-	glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
 
 	glBegin(GL_LINES);
 		if( c1 )
@@ -239,12 +237,10 @@ GLvoid DrawLine2D(
 	float x2, float y2,
 	int c, float w)
 {
-	glPushAttrib(GL_ENABLE_BIT | GL_LINE_BIT | GL_HINT_BIT | GL_CURRENT_BIT);
+	glPushAttrib(GL_ENABLE_BIT | GL_LINE_BIT | GL_CURRENT_BIT);
 	glDisable(GL_LIGHTING);
 	glDisable(GL_TEXTURE_2D);
 	glLineWidth(w);
-	glEnable(GL_LINE_SMOOTH);
-	glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
 	
 	glBegin(GL_LINES);
 		SetColor(c);
@@ -257,14 +253,12 @@ GLvoid DrawLine2D(
 
 GLvoid DrawFrame(float x, float y, float z, float r, float w)
 {
-	glPushAttrib(GL_TRANSFORM_BIT | GL_ENABLE_BIT | GL_LINE_BIT | GL_HINT_BIT | GL_CURRENT_BIT);
+	glPushAttrib(GL_TRANSFORM_BIT | GL_ENABLE_BIT | GL_LINE_BIT | GL_CURRENT_BIT);
 	glPushMatrix();
 	glTranslatef(x, y, z);
 	glDisable(GL_LIGHTING);
 	glDisable(GL_TEXTURE_2D);
 	glLineWidth(w);
-	glEnable(GL_LINE_SMOOTH);
-	glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
 	
 	glBegin(GL_LINES);
 		// X in Red
@@ -712,6 +706,10 @@ struct DbgSpline: DbgObject
 void DbgAddSpline(Point ptPos1, Point ptDir1, Point ptPos2, Point ptDir2, int nColor, float fWidth, float fStep, int nDivs)
 {
 	DbgAdd(new DbgSpline(ptPos1, ptDir1, ptPos2, ptDir2, nColor, fWidth, fStep, nDivs));
+}
+void DbgAddSpline(Point *ptSpline, int nColor, float fWidth, float fStep, int nDivs)
+{
+	DbgAdd(new DbgSpline(ptSpline[0], ptSpline[1] - ptSpline[0], ptSpline[3], ptSpline[3] - ptSpline[2], nColor, fWidth, fStep, nDivs));
 }
 
 #endif _DEBUG 

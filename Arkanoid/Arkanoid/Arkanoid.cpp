@@ -68,10 +68,10 @@ float
 	fSelX = -1.0f, fSelY = -1.0f, fSelZ = 0.0f,
 	fPlatX = 0;
 int nNewWinX = -1, nNewWinY = -1, nBallN = 6;
-bool bNewBall = false, bNewMouse = false, bNewSelection = false, bValidSpeed = false;
+bool bNewBall = false, bNewMouse = false, bNewSelection = false, bValidSpeed = false, bNewMouseClick = false, bMouseReleased = true, bNewClick = false;
 Font font("Times New Roman", -16), smallFont("Courier New", -12);
 Event evTask;
-Panel c_pEditor, c_pGame, c_pControls, c_pParticles;
+Panel c_pEditor, c_pGame, c_pControls, c_pParticles, c_pTest;
 Label c_lPath;
 Button c_bExit, c_bLoad, c_bSave;
 CheckBox c_cbFullscreen, c_cbGeometry, c_cbParticles;
@@ -112,7 +112,7 @@ struct Particle
 particles[MAX_PARTICLES] = {0};
 FileDialog fd;
 Directory dir;
-bool bEditor = false, bInterface = false;
+bool bEditor = false, bInterface = false, bTest = false;
 const int nBrickCount = LEVEL_WIDTH * LEVEL_HEIGHT;
 struct Brick
 {
@@ -149,16 +149,24 @@ void _ToggleFullscreen()
 	app.ToggleFullscreen();
 }
 
-void UpdateVisibility()
+void UpdateUI()
 {
-	c_pGame.m_bVisible = !bEditor && bInterface;
+	DbgClear();
+	c_pGame.m_bVisible = !bEditor && !bTest && bInterface;
 	c_pEditor.m_bVisible = bEditor;
+	c_pTest.m_bVisible = bTest;
 }
 
 void ToggleEditor()
 {
 	bEditor = !bEditor;
-	UpdateVisibility();
+	UpdateUI();
+}
+
+void ToggleTest()
+{
+	bTest = !bTest;
+	UpdateUI();
 }
 
 void SetBrickType()
@@ -328,7 +336,13 @@ void Draw2D()
 		font.Print(buff, 5, (float)app.nWinHeight, 0xffffffff, ALIGN_LEFT, ALIGN_TOP);
 	}
 
-	if( !bEditor && bInterface && imgBall2D )
+	if( bTest )
+	{
+	}
+	else if(bEditor)
+	{
+	}
+	else if( bInterface && imgBall2D )
 	{
 		imgBall2D->Draw(0, 0);
 	}
@@ -342,6 +356,11 @@ void Draw3D()
 	{
 		bNewMouse = false;
 		bNewSelection = true;
+		if( bNewMouseClick )
+		{
+			bNewMouseClick = false;
+			bNewClick = true;
+		}
 		ScreenToScene(nNewWinX, nNewWinY, fSelX, fSelY, fSelZ);
 		bValidSpeed = SetNewDir(fSelX - fBallX, fSelY - fBallY) > 0;
 	}
@@ -442,86 +461,91 @@ void Draw3D()
 	glPopAttrib();
 
 	glPushAttrib(GL_ENABLE_BIT);
-	if( bEditor )
+	if( bTest )
 	{
-		GLfloat pGlowPos[] = {fSelX, fSelY, fSelZ, 1.0f};
-		glLightfv(GL_LIGHT2, GL_POSITION, pGlowPos);
-		if( nSelectedBrick == -1 )
-			glDisable(GL_FOG);
-		else
-			glEnable(GL_FOG);
 	}
 	else
 	{
-		GLfloat pGlowPos[] = {fBallX, fBallY, fBallZ, 1.0f};
-		glLightfv(GL_LIGHT2, GL_POSITION, pGlowPos);
-
-		if( bInterface )
+		if( bEditor )
 		{
-			DrawLine3D(fSelX, fSelY, fSelZ, fBallX, fBallY, fBallZ, 0xff00ffff);
-			DrawFrame(fSelX, fSelY, fSelZ);
-		}
-
-		glPushMatrix();
-		glTranslatef(fBallX, fBallY, fBallZ);
-		glRotatef(fBallA, fBallRotX, fBallRotY, fBallRotZ);
-		texBall.Bind();
-		dlBall.Execute();
-		glPopMatrix();
-
-		glPushMatrix();
-		glTranslatef(fPlatX, fPlatY, 0);
-		texPlatform.Bind();
-		dlPlatform.Execute();
-		glPopMatrix();
-
-	}
-	for(int k = 0; k < MAX_TYPE; k++)
-	{
-		for(int i = 0; i < nBrickCount; i++)
-		{
-			const Brick &brick = bricks[i];
-			if( bSortDraw && brick.type != k )
-				continue;
-			bool bSelected = i == nSelectedBrick;
-			float z = 0;
-			glPushAttrib(GL_ENABLE_BIT);
-			if( bEditor && bSelected )
-			{
-				z = 0.1f + 0.1f*sinf(fJumpEffectZ);
+			GLfloat pGlowPos[] = {fSelX, fSelY, fSelZ, 1.0f};
+			glLightfv(GL_LIGHT2, GL_POSITION, pGlowPos);
+			if( nSelectedBrick == -1 )
 				glDisable(GL_FOG);
-			}
-			glPushMatrix();
-			glTranslatef(brick.x, brick.y, z);
-			switch( brick.type )
-			{
-			case 1:
-				texSmile.Bind();
-				dlBrickBall.Execute();
-				break;
-			case 2:
-				texWood.Bind();
-				dlBrickCube.Execute();
-				break;
-			case 3:
-				texClock.Bind();
-				dlBrickBall.Execute();
-				break;
-			default:
-				if( bEditor )
-				{
-					texParticle.Bind();
-					dlBrickBall.Execute();
-				}
-			}
-			glPopMatrix();
-			glPopAttrib();
+			else
+				glEnable(GL_FOG);
 		}
-		if( !bSortDraw )
-			break;
+		else
+		{
+			GLfloat pGlowPos[] = {fBallX, fBallY, fBallZ, 1.0f};
+			glLightfv(GL_LIGHT2, GL_POSITION, pGlowPos);
+
+			if( bInterface )
+			{
+				DrawLine3D(fSelX, fSelY, fSelZ, fBallX, fBallY, fBallZ, 0xff00ffff);
+				DrawFrame(fSelX, fSelY, fSelZ);
+			}
+
+			glPushMatrix();
+			glTranslatef(fBallX, fBallY, fBallZ);
+			glRotatef(fBallA, fBallRotX, fBallRotY, fBallRotZ);
+			texBall.Bind();
+			dlBall.Execute();
+			glPopMatrix();
+
+			glPushMatrix();
+			glTranslatef(fPlatX, fPlatY, 0);
+			texPlatform.Bind();
+			dlPlatform.Execute();
+			glPopMatrix();
+
+		}
+		for(int k = 0; k < MAX_TYPE; k++)
+		{
+			for(int i = 0; i < nBrickCount; i++)
+			{
+				const Brick &brick = bricks[i];
+				if( bSortDraw && brick.type != k )
+					continue;
+				bool bSelected = i == nSelectedBrick;
+				float z = 0;
+				glPushAttrib(GL_ENABLE_BIT);
+				if( bEditor && bSelected )
+				{
+					z = 0.1f + 0.1f*sinf(fJumpEffectZ);
+					glDisable(GL_FOG);
+				}
+				glPushMatrix();
+				glTranslatef(brick.x, brick.y, z);
+				switch( brick.type )
+				{
+				case 1:
+					texSmile.Bind();
+					dlBrickBall.Execute();
+					break;
+				case 2:
+					texWood.Bind();
+					dlBrickCube.Execute();
+					break;
+				case 3:
+					texClock.Bind();
+					dlBrickBall.Execute();
+					break;
+				default:
+					if( bEditor )
+					{
+						texParticle.Bind();
+						dlBrickBall.Execute();
+					}
+				}
+				glPopMatrix();
+				glPopAttrib();
+			}
+			if( !bSortDraw )
+				break;
+		}
 	}
 	glPopAttrib();
-
 	DbgDraw();
 }
 
@@ -621,6 +645,13 @@ void Application::OnInput(const Input &input)
 						nNewWinX = x;
 						nNewWinY = y;
 						bNewMouse = true;
+						if( bMouseReleased )
+							bNewMouseClick = true;
+						bMouseReleased = false;
+					}
+					else
+					{
+						bMouseReleased = true;
 					}
 				}
 				if( mouse.wheel )
@@ -640,13 +671,16 @@ void Application::OnInput(const Input &input)
 				{
 				case VK_ESCAPE:
 					bInterface = !bInterface;
-					UpdateVisibility();
+					UpdateUI();
 					break;
 				case VK_F11:
 					ToggleFullscreen();
 					break;
 				case VK_F3:
-					ToggleEditor();
+					if( bKeys[VK_CONTROL] )
+						ToggleTest();
+					else
+						ToggleEditor();
 					break;
 				case VK_F4:
 					if( keyboard.alt )
@@ -695,13 +729,81 @@ void Application::OnInput(const Input &input)
 void Application::Update()
 {
 	bool bUpdateSelection = bNewSelection;
+	bool bUpdateClick = bNewClick;
 	bNewSelection = false;
+	bNewClick = false;
 
 	float time = timer.Time();
 	float dt = (time - fLastSimTime) * fSimTimeCoef;
 	fLastSimTime = time;
 
-	if( bEditor )
+	if( bTest )
+	{
+		static int nIdx = 0;
+		if( bKeys[VK_ESCAPE] )
+			nIdx = 0;
+		//if( bUpdateSelection )
+		{
+			DbgClear();
+			Point ptSel(fSelX, fSelY, fSelZ);
+			static Point ptSpline1[4], ptSpline2[4];
+			const float fRad = 0.05f;
+			if( nIdx >= 0 && nIdx < 4 )
+			{
+				if( bUpdateClick )
+				{
+					ptSpline1[nIdx] = ptSel;
+					nIdx++;
+				}
+				DbgAddCircle(ptSpline1[0], fRad);
+				for(int i = 1; i<nIdx; i++)
+				{
+					DbgAddCircle(ptSpline1[i], fRad);
+					DbgAddVector(ptSpline1[i-1], ptSpline1[i] - ptSpline1[i-1]);
+				}
+			}
+			else if(nIdx >= 4 && nIdx < 8)
+			{
+				if( bUpdateClick )
+				{
+					ptSpline2[nIdx - 4] = ptSel;
+					nIdx++;
+				}
+				DbgAddCircle(ptSpline2[0], fRad);
+				for(int i = 1; i<nIdx-4; i++)
+				{
+					DbgAddCircle(ptSpline2[i], fRad);
+					DbgAddVector(ptSpline2[i-1], ptSpline2[i] - ptSpline2[i-1]);
+				}
+			}
+			else
+			{
+				Point c1[4], c2[4], p1, p2;
+				SplineCoefs(ptSpline1, c1);
+				SplineCoefs(ptSpline2, c2);
+				float fMinDist = 0.001f;
+				float k1, k2;
+				float dist2 = DistSplineSpline2(ptSpline1, ptSpline2, fMinDist / 10, &k1, &k2);
+				if( dist2 <= fMinDist * fMinDist )
+				{
+					p1 = SplinePos(c1, k1);
+					p2 = SplinePos(c2, k2);
+					DbgAddCircle(p1, 0.05, 0xff0000ff);
+				}
+				DistSplinePoint2(ptSpline1, ptSel, fMinDist, &k1);
+				DistSplinePoint2(ptSpline2, ptSel, fMinDist, &k2);
+				p1 = SplinePos(c1, k1);
+				p2 = SplinePos(c2, k2);
+				DbgAddVector(ptSel, p1 - ptSel, 0xff00ff00);
+				DbgAddVector(ptSel, p2 - ptSel, 0xff00ff00);
+			}
+			if( nIdx >= 4 )
+				DbgAddSpline(ptSpline1, 0xff00ffff, 1.0f, 0.01f);
+			if( nIdx >= 8 )
+				DbgAddSpline(ptSpline2, 0xffffff00, 1.0f, 0.01f);
+		}
+	}
+	else if(bEditor)
 	{
 		if( bUpdateSelection )
 		{
@@ -873,10 +975,10 @@ void Application::Update()
 				ptA(fBallX, fBallY, fBallZ),
 				ptB(fBallSpeed * fBallDirX, fBallSpeed * fBallDirY, 0),
 				ptC(fSelX, fSelY, fSelZ),
-				ptD((fBallX - fSelX) / 2, (fBallY - fSelY) / 2, 0);
+				ptD((fBallX - fSelX), (fBallY - fSelY), 0);
 			DbgAddVector(ptA, ptB, 0xffffffff);
 			DbgAddVector(ptC, -ptD, 0xffffffff);
-			DbgAddSpline(ptA, ptB, ptC, ptD, 0xffffff00, 1, 0.001f);
+			DbgAddSpline(ptA, ptB, ptC, ptD, 0xffffff00, 1.0f, 0.001f);
 
 			float xn = fBallX - colx, yn = fBallY - coly;
 			float dot = fBallDirX * xn + fBallDirY * yn;
@@ -995,6 +1097,8 @@ void Application::Draw()
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 	Draw2D();
+
+	// UI
 	glLoadIdentity();
 	c_container._Draw();
 	glPopAttrib();
@@ -1118,6 +1222,8 @@ BOOL Application::Create()
 	c_sFriction.m_pchFormat = "%.2f";
 
 	c_lPath.CopyTo(c_sFriction.m_name);
+	c_sFriction.m_name.m_nAnchorTop = -1;
+	c_sFriction.m_name.m_nAnchorRight = -1;
 	c_sFriction.m_name.m_pFont = &font;
 	c_sFriction.m_name.m_nBorderColor = 0;
 	c_sFriction.m_name.SetBounds(5, 5, 90, 20);
@@ -1184,9 +1290,11 @@ BOOL Application::Create()
 	c_pEditor.Add(&c_bLoad);
 	c_pEditor.Add(&c_bSave);
 	c_pEditor.Add(&c_sBrick);
+	c_pEditor.CopyTo(c_pTest);
 
 	c_container.Add(&c_pGame);
 	c_container.Add(&c_pEditor);
+	c_container.Add(&c_pTest);
 	c_container._Invalidate();
 
 	for(int y = 0, o = 0; y < LEVEL_HEIGHT; y++)

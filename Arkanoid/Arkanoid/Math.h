@@ -90,6 +90,15 @@ float DistSegmentPoint2D2(
 	float xc, float yc,
 	float *k = NULL);
 
+float DistSplineSpline2(
+	const Point *ptSpline1, const Point *ptSpline2,
+	float fPrecision = -1,
+	float *k1 = NULL, float *k2 = NULL);
+
+float DistSplinePoint2(
+	const Point *ptSpline, Point ptPos,
+	float fPrecision = -1, float *k = NULL);
+
 inline void SplineCoefs( const Point *pt, Point *c )
 {
 	c[0] = pt[0];
@@ -106,7 +115,7 @@ inline Point SplinePos( const Point *c, float t )
 		((c[3].z * t + c[2].z) * t + c[1].z) * t + c[0].z);
 }
 
-inline Point SplineDir( const Point *c, float t )
+inline Point SplineSpeed( const Point *c, float t )
 {
 	return Point(
 		(c[3].x * 1.5f * t + c[2].x) * 2.0f * t + c[1].x,

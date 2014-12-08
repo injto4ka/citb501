@@ -31,6 +31,8 @@
 // Returns formatted text
 #define FORMAT(buff, fmt, ...) ( _snprintf(buff, sizeof(buff) - 1, fmt, __VA_ARGS__), buff[sizeof(buff) - 1] = 0, buff )
 
+#define ArrSize(A) (sizeof(A)/sizeof((A)[0]))
+
 inline int StrLen(const char *text) { return (text && *text) ? (int)strlen(text) : 0; }
 
 typedef const char* ErrorCode;
@@ -74,7 +76,6 @@ inline float FastInvSqrt(float x)
 	_asm movss res, xmm0
 	return res;
 }
-
 class File
 {
 	FILE *pFile;
