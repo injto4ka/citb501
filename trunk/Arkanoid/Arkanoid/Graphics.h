@@ -281,6 +281,10 @@ void DbgAddSpline(
 	Point ptPos1, Point ptDir1, Point ptPos2, Point ptDir2,
 	int nColor = 0xffffffff, float fWidth = 1.0f,
 	float fStep = 0, int nDivs = 12);
+void DbgAddSpline(
+	Point *ptSpline,
+	int nColor = 0xffffffff, float fWidth = 1.0f,
+	float fStep = 0, int nDivs = 12);
 #else
 #	define DbgDraw() ((void)0)
 #	define DbgClear() ((void)0)
