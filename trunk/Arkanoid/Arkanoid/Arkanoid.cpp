@@ -154,7 +154,7 @@ void UpdateUI()
 	DbgClear();
 	c_pGame.m_bVisible = !bEditor && !bTest && bInterface;
 	c_pEditor.m_bVisible = bEditor;
-	c_pTest.m_bVisible = bTest;
+	c_pTest.m_bVisible = false;
 }
 
 void ToggleEditor()
@@ -742,7 +742,7 @@ void Application::Update()
 		static int nIdx = 0;
 		if( bKeys[VK_ESCAPE] )
 			nIdx = 0;
-		//if( bUpdateSelection )
+		if( bUpdateSelection )
 		{
 			DbgClear();
 			Point ptSel(fSelX, fSelY, fSelZ);
@@ -1321,6 +1321,8 @@ BOOL Application::Create()
 
 	LoadNextLevel();
 	// Randomize();
+
+	ToggleTest();
 
 	return TRUE;
 }
