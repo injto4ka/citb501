@@ -781,17 +781,17 @@ void Application::Update()
 				Point c1[4], c2[4], p1, p2;
 				SplineCoefs(ptSpline1, c1);
 				SplineCoefs(ptSpline2, c2);
-				float fMinDist = 0.001f;
+				float fMinDist = 0.001f, fPrecision = fMinDist / 10;
 				float k1, k2;
-				float dist2 = DistSplineSpline2(ptSpline1, ptSpline2, fMinDist / 10, &k1, &k2);
+				float dist2 = DistSplineSpline2(ptSpline1, ptSpline2, fPrecision, &k1, &k2);
 				if( dist2 <= fMinDist * fMinDist )
 				{
 					p1 = SplinePos(c1, k1);
 					p2 = SplinePos(c2, k2);
 					DbgAddCircle(p1, 0.05, 0xff0000ff);
 				}
-				DistSplinePoint2(ptSpline1, ptSel, fMinDist, &k1);
-				DistSplinePoint2(ptSpline2, ptSel, fMinDist, &k2);
+				DistSplinePoint2(ptSpline1, ptSel, fPrecision, &k1);
+				DistSplinePoint2(ptSpline2, ptSel, fPrecision, &k2);
 				p1 = SplinePos(c1, k1);
 				p2 = SplinePos(c2, k2);
 				DbgAddVector(ptSel, p1 - ptSel, 0xff00ff00);
