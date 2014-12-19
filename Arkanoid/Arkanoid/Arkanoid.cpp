@@ -7,6 +7,7 @@
 #include "ui.h"
 #include "math.h"
 #include "application.h"
+#include "comm.h"
 
 #define LEVEL_WIDTH 20
 #define LEVEL_HEIGHT 10
@@ -70,12 +71,13 @@ float
 int nNewWinX = -1, nNewWinY = -1, nBallN = 6;
 bool bNewBall = false, bNewMouse = false, bNewSelection = false, bValidSpeed = false, bNewMouseClick = false, bMouseReleased = true, bNewClick = false;
 Font font("Times New Roman", -16), smallFont("Courier New", -12);
-Event evTask;
+Event evComm;
 Panel c_pEditor, c_pGame, c_pControls, c_pParticles, c_pTest;
 Label c_lPath;
 Button c_bExit, c_bLoad, c_bSave;
 CheckBox c_cbFullscreen, c_cbGeometry, c_cbParticles;
 SliderBar c_sFriction, c_sSlowdown, c_sBrick;
+Socket sock;
 
 std::deque<float> lfFrameIntervals;
 const float fTimeSumMax = 3;
@@ -606,20 +608,18 @@ bool LoadNextLevel()
 	}
 }
 
-void Task()
-{
-}
-
-static DWORD WINAPI TaskProc(void * param)
+static DWORD WINAPI CommProc(void * param)
 {
 	HANDLE hThread = GetCurrentThread();
 	SetThreadPriority(hThread, THREAD_PRIORITY_NORMAL);
-	SetThreadName("Task");
+	SetThreadName("Comm");
+
+	if( !sock.StartListen(12345) )
+		Print("Error starting listening!");
 
 	while (app.bIsProgramLooping)
 	{
-		Task();
-		evTask.Wait();
+		evComm.Wait(10);
 	}
 
 	CloseHandle(hThread);
@@ -1106,7 +1106,8 @@ void Application::Draw()
 
 void Application::Destroy()
 {
-	evTask.Signal();
+	sock.Disconnect();
+	evComm.Signal();
 }
 
 BOOL Application::Create()
@@ -1116,9 +1117,9 @@ BOOL Application::Create()
 	nWinWidth = 800;
 	nWinHeight = 600;
 
-	if( !CreateThread(NULL, 0, TaskProc, NULL, 0, NULL) )
+	if( !CreateThread(NULL, 0, CommProc, NULL, 0, NULL) )
 	{
-		Message("Failed to start the task thread!");
+		Message("Failed to start the comm thread!");
 		return FALSE;
 	}
 
