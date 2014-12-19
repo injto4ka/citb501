@@ -13,6 +13,10 @@
 #	define ASSERT(_Expression) ((void)0)
 #endif
 
+#ifndef NO_ERROR
+#define NO_ERROR 0
+#endif
+
 #pragma warning(disable:4996)
 
 #ifndef PI
