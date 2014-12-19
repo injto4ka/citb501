@@ -13,17 +13,16 @@
 class Socket
 {
 protected:
-	SOCKET sock_connect, sock_listen;
+	SOCKET m_socket;
 	WSADATA wsaData;
-	SOCKADDR_IN addr_connect, addr_listen;
+	SOCKADDR_IN m_address;
 public:
 	int error;
 	Socket(BYTE revision = 2, BYTE version = 2);
 	~Socket();
-	BOOL Accept();
+	BOOL Accept(Socket &sock);
 	BOOL Connect(const char *ip, WORD port);
-	BOOL StartListen(WORD port);
-	void StopListen();
+	BOOL Listen(WORD port);
 	void Disconnect();
 	BOOL Receive(void *buffer, int n);
 	BOOL Send(const void *buffer, int n);
