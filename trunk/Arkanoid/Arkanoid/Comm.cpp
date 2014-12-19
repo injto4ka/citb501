@@ -2,53 +2,44 @@
 
 #pragma comment(lib, "ws2_32.lib" )
 
-Socket::Socket(BYTE revision, BYTE version):
-	sock_connect(INVALID_SOCKET),
-	sock_listen(INVALID_SOCKET)
+Socket::Socket(BYTE revision, BYTE version): m_socket(INVALID_SOCKET)
 {
 	WSAStartup(MAKEWORD(revision,version), &wsaData);
+	memset(&m_address, 0, sizeof(m_address));
 }
 Socket::~Socket()
 {
-	StopListen();
+	Disconnect();
 	WSACleanup();
 }
 void Socket::Disconnect()
 {
-	if(sock_connect!=INVALID_SOCKET)
+	if(m_socket!=INVALID_SOCKET)
     {
-		closesocket(sock_connect);
-		sock_connect = INVALID_SOCKET;
+		closesocket(m_socket);
+		m_socket = INVALID_SOCKET;
+		memset(&m_address, 0, sizeof(m_address));
     }
 }
-void Socket::StopListen()
+BOOL Socket::Listen(WORD port)
 {
 	Disconnect();
-	if(sock_listen!=INVALID_SOCKET)
-    {
-		closesocket(sock_listen);
-		sock_listen = INVALID_SOCKET;
-    }
-}
-BOOL Socket::StartListen(WORD port)
-{
-	StopListen();
-	sock_listen = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (sock_connect == INVALID_SOCKET)
+	m_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (m_socket == INVALID_SOCKET)
 	{
 		error=WSAGetLastError();
 		return FALSE;
 	}
-	memset(&addr_listen, 0, sizeof(addr_listen));
-	addr_listen.sin_family = AF_INET;
-	addr_listen.sin_port = htons(port);
-	addr_listen.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-	if(::bind(sock_listen, (SOCKADDR*) &addr_listen, sizeof(addr_listen)) == SOCKET_ERROR)
+	memset(&m_address, 0, sizeof(m_address));
+	m_address.sin_family = AF_INET;
+	m_address.sin_port = htons(port);
+	m_address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+	if(::bind(m_socket, (SOCKADDR*) &m_address, sizeof(m_address)) == SOCKET_ERROR)
 	{
 		error=WSAGetLastError();
 		return FALSE;
 	}
-	if(::listen(sock_listen, SOMAXCONN) == SOCKET_ERROR)
+	if(::listen(m_socket, SOMAXCONN) == SOCKET_ERROR)
 	{
 		error=WSAGetLastError();
 		return FALSE;
@@ -56,13 +47,14 @@ BOOL Socket::StartListen(WORD port)
 	error=NO_ERROR;
 	return TRUE;
 }
-BOOL Socket::Accept()
+BOOL Socket::Accept(Socket &sock)
 {
-	if( sock_listen == INVALID_SOCKET)
+	if( m_socket == INVALID_SOCKET)
 		return FALSE;
-	int addrlen = sizeof(addr_connect);
-	sock_connect = ::accept(sock_listen, (SOCKADDR*) &addr_connect, &addrlen);
-	if( sock_connect == INVALID_SOCKET )
+	sock.Disconnect();
+	int addrlen = sizeof(sock.m_address);
+	sock.m_socket = ::accept(m_socket, (SOCKADDR*)&sock.m_address, &addrlen);
+	if( m_socket == INVALID_SOCKET )
 	{
 		error=WSAGetLastError();
 		return FALSE;
@@ -71,36 +63,35 @@ BOOL Socket::Accept()
 }
 BOOL Socket::Connect(const char *ip, WORD port)
 {
-	StopListen();
-	memset(&addr_connect, 0, sizeof(addr_connect));
-	addr_connect.sin_family = AF_INET;
-	addr_connect.sin_port = htons(port);
+	Disconnect();
+	m_address.sin_family = AF_INET;
+	m_address.sin_port = htons(port);
 	if(!ip)
 	{
-		addr_connect.sin_addr.s_addr = htonl(INADDR_ANY);
+		m_address.sin_addr.s_addr = htonl(INADDR_ANY);
 	}
 	else if(strcmp(ip,"localhost")==0)
 	{
-		addr_connect.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+		m_address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 	}
 	else if(strcmp(ip,"broadcast")==0)
 	{
-		addr_connect.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+		m_address.sin_addr.s_addr = htonl(INADDR_BROADCAST);
 	}
 	else
 	{
 		ULONG tmp=inet_addr(ip);
 		if(tmp==INADDR_NONE)
 			return FALSE;
-		addr_connect.sin_addr.s_addr = tmp;
+		m_address.sin_addr.s_addr = tmp;
 	}
-	sock_connect = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (sock_connect == INVALID_SOCKET)
+	m_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (m_socket == INVALID_SOCKET)
 	{
 		error=WSAGetLastError();
 		return FALSE;
 	}
-	if(::connect(sock_connect, (SOCKADDR*) &addr_connect, sizeof(addr_connect)) == SOCKET_ERROR)
+	if(::connect(m_socket, (SOCKADDR*) &m_address, sizeof(m_address)) == SOCKET_ERROR)
 	{
 		error=WSAGetLastError();
 		return FALSE;
@@ -110,7 +101,7 @@ BOOL Socket::Connect(const char *ip, WORD port)
 }
 BOOL Socket::Receive(void *buffer, int n)
 {
-	int bytes=::recv(sock_connect, (char *)buffer, n, 0);
+	int bytes=::recv(m_socket, (char *)buffer, n, 0);
 	if(bytes!=n)
 		error=WSAGetLastError();
 	else
@@ -119,7 +110,7 @@ BOOL Socket::Receive(void *buffer, int n)
 }
 BOOL Socket::Send(const void *buffer, int n)
 {
-	int bytes = ::send(sock_connect, (const char *)buffer, n, 0);
+	int bytes = ::send(m_socket, (const char *)buffer, n, 0);
 	if(bytes!=n)
 		error=WSAGetLastError();
 	else
