@@ -16,17 +16,18 @@ protected:
 	SOCKET m_socket;
 	WSADATA wsaData;
 	SOCKADDR_IN m_address;
+	static ErrorCode Create(SOCKET &sock);
 public:
-	int error;
 	Socket(BYTE revision = 2, BYTE version = 2);
 	~Socket();
-	BOOL Accept(Socket &sock);
-	BOOL Connect(const char *ip, WORD port);
-	BOOL Listen(WORD port);
 	void Disconnect();
-	BOOL Receive(void *buffer, int n);
-	BOOL Send(const void *buffer, int n);
+	ErrorCode Accept(Socket &sock);
+	ErrorCode Connect(const char *ip, WORD port);
+	ErrorCode Listen(WORD port);
+	ErrorCode Receive(void *buffer, int n);
+	ErrorCode Send(const void *buffer, int n);
 	const WSADATA *Info() const {return &wsaData;}
+	BOOL IsConnected() const { return m_socket != INVALID_SOCKET; }
 };
 
 #endif // __LIOCOM_H__
