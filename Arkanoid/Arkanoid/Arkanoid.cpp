@@ -614,19 +614,26 @@ static DWORD WINAPI CommProc(void * param)
 	SetThreadPriority(hThread, THREAD_PRIORITY_NORMAL);
 	SetThreadName("Comm");
 	Socket server, client;
+	ErrorCode err;
 
-	if( !server.Listen(12345) )
+	err = server.Listen(12345);
+	if( err )
 	{
-		Print("Error starting listening!\n");
-		if( !client.Connect("localhost", 12345) )
-			Print("Error connecting!\n");
+		Print("Error starting listening: %s\n", err);
+		err = client.Connect("localhost", 12345);
+		if( err )
+			Print("Error connecting: %s\n", err);
 		else
 			Print("Connected to server!\n");
 	}
-	else if( !server.Accept(client) )
-		Print("Error accepting!\n");
 	else
-		Print("Connected to client!\n");
+	{
+		err = server.Accept(client);
+		if( err )
+			Print("Error accepting: %s\n", err);
+		else
+			Print("Connected to client!\n");
+	}
 
 	while (app.bIsProgramLooping)
 	{
