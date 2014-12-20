@@ -24,10 +24,13 @@ public:
 	ErrorCode Accept(Socket &sock);
 	ErrorCode Connect(const char *ip, WORD port);
 	ErrorCode Listen(WORD port);
-	ErrorCode Receive(void *buffer, int n);
-	ErrorCode Send(const void *buffer, int n);
+	ErrorCode Receive(void *buffer, int &n) const;
+	ErrorCode Send(const void *buffer, int &n) const;
 	const WSADATA *Info() const {return &wsaData;}
 	BOOL IsConnected() const { return m_socket != INVALID_SOCKET; }
+	const char *IP() const;
+	unsigned short Port() const;
+	BOOL WaitingData(int wait_ms = 0) const;
 };
 
 #endif // __LIOCOM_H__
