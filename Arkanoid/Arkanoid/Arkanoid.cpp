@@ -608,35 +608,72 @@ bool LoadNextLevel()
 	}
 }
 
+std::string strSend = "Hello world!", strReceive;
 static DWORD WINAPI CommProc(void * param)
 {
 	HANDLE hThread = GetCurrentThread();
 	SetThreadPriority(hThread, THREAD_PRIORITY_NORMAL);
 	SetThreadName("Comm");
-	Socket server, client;
+	Socket server, connection;
 	ErrorCode err;
 
 	err = server.Listen(12345);
 	if( err )
 	{
 		Print("Error starting listening: %s\n", err);
-		err = client.Connect("localhost", 12345);
+		err = connection.Connect("localhost", 12345);
 		if( err )
 			Print("Error connecting: %s\n", err);
 		else
-			Print("Connected to server!\n");
+			Print("Connected to server at %s:%d\n", connection.IP(), connection.Port());
 	}
 	else
 	{
-		err = server.Accept(client);
+		Print("Started listening at %s:%d\n", server.IP(), server.Port());
+		err = server.Accept(connection);
 		if( err )
 			Print("Error accepting: %s\n", err);
 		else
-			Print("Connected to client!\n");
+			Print("Connected client %s:%d\n", connection.IP(), connection.Port());
 	}
 
 	while (app.bIsProgramLooping)
 	{
+		int size = strSend.size();
+		if( size > 0 )
+		{
+			ErrorCode err = connection.Send(strSend.c_str(), size);
+			if( err )
+			{
+				Print("Error sending: %s\n", err);
+			}
+			else
+			{
+				Print("Sent: %s\n", strSend.substr(0, size).c_str());
+				strSend = strSend.substr(size, strSend.size() - size);
+			}
+		}
+		if( connection.WaitingData() )
+		{
+			char buffer[1024];
+			size = sizeof(buffer);
+			ErrorCode err = connection.Receive(buffer, size);
+			if( err )
+			{
+				Print("Error receiving: %s\n", err);
+			}
+			else if( size > 0 )
+			{
+				strReceive.append(buffer, size);
+				Print("Received: %s\n", strReceive.c_str());
+			}
+			else
+			{
+				Print("Disconnected.\n");
+				connection.Disconnect();
+				break;
+			}
+		}
 		evComm.Wait(10);
 	}
 

@@ -14,7 +14,7 @@ Socket::~Socket()
 }
 void Socket::Disconnect()
 {
-	if(m_socket!=INVALID_SOCKET)
+	if(m_socket != INVALID_SOCKET)
     {
 		closesocket(m_socket);
 		m_socket = INVALID_SOCKET;
@@ -24,15 +24,17 @@ void Socket::Disconnect()
 ErrorCode Socket::Listen(WORD port)
 {
 	Disconnect();
-	ErrorCode err = Create(m_socket);
+	SOCKET sock;
+	ErrorCode err = Create(sock);
 	if (err)
 		return err;
-	memset(&m_address, 0, sizeof(m_address));
-	m_address.sin_family = AF_INET;
-	m_address.sin_port = htons(port);
-	m_address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-	if(::bind(m_socket, (SOCKADDR*) &m_address, sizeof(m_address)) == SOCKET_ERROR)
+	SOCKADDR_IN addr = {};
+	addr.sin_family = AF_INET;
+	addr.sin_port = htons(port);
+	addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+	if(::bind(sock, (SOCKADDR*) &addr, sizeof(addr)) == SOCKET_ERROR)
 	{
+		closesocket(sock);
 		switch(WSAGetLastError())
 		{
 			case WSANOTINITIALISED: return "Note  A successful WSAStartup call must occur before using this function.";
@@ -48,8 +50,9 @@ ErrorCode Socket::Listen(WORD port)
 			default: return "Unknown bind error";
 		}
 	}
-	if(::listen(m_socket, SOMAXCONN) == SOCKET_ERROR)
+	if(::listen(sock, SOMAXCONN) == SOCKET_ERROR)
 	{
+		closesocket(sock);
 		switch(WSAGetLastError())
 		{
 			case WSANOTINITIALISED: return "A successful WSAStartup call must occur before using this function.";
@@ -65,6 +68,8 @@ ErrorCode Socket::Listen(WORD port)
 			default: return "Unknown listen error";
 		}
 	}
+	m_socket = sock;
+	m_address = addr;
 	return NO_ERROR;
 }
 ErrorCode Socket::Accept(Socket &sock)
@@ -117,37 +122,40 @@ ErrorCode Socket::Create(SOCKET &sock)
 ErrorCode Socket::Connect(const char *ip, WORD port)
 {
 	Disconnect();
-	m_address.sin_family = AF_INET;
-	m_address.sin_port = htons(port);
+	SOCKADDR_IN addr = {};
+	addr.sin_family = AF_INET;
+	addr.sin_port = htons(port);
 	if(!ip)
 	{
-		m_address.sin_addr.s_addr = htonl(INADDR_ANY);
+		addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	}
-	else if(strcmp(ip,"localhost")==0)
+	else if(strcmp(ip,"localhost") == 0)
 	{
-		m_address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+		addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 	}
-	else if(strcmp(ip,"broadcast")==0)
+	else if(strcmp(ip,"broadcast") == 0)
 	{
-		m_address.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+		addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
 	}
 	else
 	{
-		ULONG tmp=inet_addr(ip);
-		if(tmp==INADDR_NONE)
+		ULONG tmp = inet_addr(ip);
+		if(tmp == INADDR_NONE)
 			return "Malformed internet address";
-		m_address.sin_addr.s_addr = tmp;
+		addr.sin_addr.s_addr = tmp;
 	}
-	ErrorCode err = Create(m_socket);
+	SOCKET sock;
+	ErrorCode err = Create(sock);
 	if (err)
 		return err;
-	if(::connect(m_socket, (SOCKADDR*) &m_address, sizeof(m_address)) == SOCKET_ERROR)
+	if(::connect(sock, (SOCKADDR*) &addr, sizeof(addr)) == SOCKET_ERROR)
 	{
+		closesocket(sock);
 		switch(WSAGetLastError())
 		{
 			case WSANOTINITIALISED: return "A successful WSAStartup call must occur before using this function.";
 			case WSAENETDOWN: return "The network subsystem has failed.";
-			case WSAEADDRINUSE: return "The socket's local address is already in use and the socket was not marked to allow address reuse with SO_REUSEADDR.";
+			case WSAEADDRINUSE: return "The socket's local address is already in use.";
 			case WSAEINTR: return "The blocking Windows Socket 1.1 call was canceled.";
 			case WSAEINPROGRESS: return "A blocking Windows Sockets 1.1 call is in progress, or the service provider is still processing a callback function.";
 			case WSAEALREADY: return "A nonblocking connect call is in progress on the specified socket.";
@@ -167,12 +175,14 @@ ErrorCode Socket::Connect(const char *ip, WORD port)
 			default: return "Unknown connection error";
 		}
 	}
+	m_socket = sock;
+	m_address = addr;
 	return NO_ERROR;
 }
-ErrorCode Socket::Receive(void *buffer, int n)
+ErrorCode Socket::Receive(void *buffer, int &bytes) const
 {
-	int bytes=::recv(m_socket, (char *)buffer, n, 0);
-	if(bytes == n)
+	bytes = ::recv(m_socket, (char *)buffer, bytes, 0);
+	if(bytes != SOCKET_ERROR)
 		return NO_ERROR;
 	switch(WSAGetLastError())
 	{
@@ -195,10 +205,10 @@ ErrorCode Socket::Receive(void *buffer, int n)
 		default: return "Unknown receive error";
 	}
 }
-ErrorCode Socket::Send(const void *buffer, int n)
+ErrorCode Socket::Send(const void *buffer, int &bytes) const
 {
-	int bytes = ::send(m_socket, (const char *)buffer, n, 0);
-	if(bytes == n)
+	bytes = ::send(m_socket, (const char *)buffer, bytes, 0);
+	if(bytes != SOCKET_ERROR)
 		return NO_ERROR;
 	switch(WSAGetLastError())
 	{
@@ -223,4 +233,22 @@ ErrorCode Socket::Send(const void *buffer, int n)
 		case WSAETIMEDOUT: return "The connection has been dropped, because of a network failure or because the system on the other end went down without notice.";
 		default: return "Unknown sending error";
 	}
+}
+const char *Socket::IP() const
+{
+	return m_socket != INVALID_SOCKET ? inet_ntoa(m_address.sin_addr) : NULL;
+}
+unsigned short Socket::Port() const
+{
+	return m_socket != INVALID_SOCKET ? ntohs(m_address.sin_port) : 0;
+}
+BOOL Socket::WaitingData(int wait_ms) const
+{
+	if( m_socket == INVALID_SOCKET)
+		return FALSE;
+	timeval time = {0};
+	time.tv_usec = wait_ms * 1000;
+	fd_set set = {0};
+	FD_SET(m_socket, &set);
+	return select(1, &set, NULL, NULL, &time) > 0;
 }
