@@ -637,7 +637,7 @@ static DWORD WINAPI CommProc(void * param)
 			Print("Connected client %s:%d\n", connection.IP(), connection.Port());
 	}
 
-	while (app.bIsProgramLooping)
+	while (app.bIsProgramLooping && connection.IsConnected())
 	{
 		int size = strSend.size();
 		if( size > 0 )
@@ -653,7 +653,7 @@ static DWORD WINAPI CommProc(void * param)
 				strSend = strSend.substr(size, strSend.size() - size);
 			}
 		}
-		if( connection.WaitingData() )
+		while( connection.WaitingData() )
 		{
 			char buffer[1024];
 			size = sizeof(buffer);
@@ -1163,6 +1163,7 @@ void Application::Destroy()
 {
 	sock.Disconnect();
 	evComm.Signal();
+	Socket::StopComm();
 }
 
 BOOL Application::Create()
@@ -1171,6 +1172,8 @@ BOOL Application::Create()
 	nTop = 100;
 	nWinWidth = 800;
 	nWinHeight = 600;
+
+	Socket::StartComm();
 
 	if( !CreateThread(NULL, 0, CommProc, NULL, 0, NULL) )
 	{

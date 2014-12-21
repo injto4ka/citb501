@@ -2,14 +2,22 @@
 
 #pragma comment(lib, "ws2_32.lib" )
 
-Socket::Socket(BYTE revision, BYTE version): m_socket(INVALID_SOCKET)
+Socket::Socket(): m_socket(INVALID_SOCKET)
 {
-	WSAStartup(MAKEWORD(revision,version), &wsaData);
 	memset(&m_address, 0, sizeof(m_address));
 }
 Socket::~Socket()
 {
 	Disconnect();
+}
+WSADATA Socket::StartComm(BYTE revision, BYTE version)
+{
+	WSADATA wsaData;
+	WSAStartup(MAKEWORD(revision,version), &wsaData);
+	return wsaData;
+}
+void Socket::StopComm()
+{
 	WSACleanup();
 }
 void Socket::Disconnect()
@@ -251,4 +259,24 @@ BOOL Socket::WaitingData(int wait_ms) const
 	fd_set set = {0};
 	FD_SET(m_socket, &set);
 	return select(1, &set, NULL, NULL, &time) > 0;
+}
+BOOL Socket::IsConnected() const
+{
+	if( m_socket == INVALID_SOCKET)
+		return FALSE;
+	int opt;
+    int len = sizeof(opt);
+    if(::getsockopt(m_socket,  SOL_SOCKET, SO_CONNECT_TIME, (char*)&opt, &len) == SOCKET_ERROR)
+		return FALSE;
+	return opt >= 0;
+}
+BOOL Socket::IsListening() const
+{
+	if( m_socket == INVALID_SOCKET)
+		return FALSE;
+	int opt;
+    int len = sizeof(opt);
+    if(::getsockopt(m_socket,  SOL_SOCKET, SO_ACCEPTCONN, (char*)&opt, &len) == SOCKET_ERROR)
+		return FALSE;
+	return !!opt;
 }

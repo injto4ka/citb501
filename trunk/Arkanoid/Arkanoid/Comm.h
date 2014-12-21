@@ -14,11 +14,10 @@ class Socket
 {
 protected:
 	SOCKET m_socket;
-	WSADATA wsaData;
 	SOCKADDR_IN m_address;
 	static ErrorCode Create(SOCKET &sock);
 public:
-	Socket(BYTE revision = 2, BYTE version = 2);
+	Socket();
 	~Socket();
 	void Disconnect();
 	ErrorCode Accept(Socket &sock);
@@ -26,11 +25,13 @@ public:
 	ErrorCode Listen(WORD port);
 	ErrorCode Receive(void *buffer, int &n) const;
 	ErrorCode Send(const void *buffer, int &n) const;
-	const WSADATA *Info() const {return &wsaData;}
-	BOOL IsConnected() const { return m_socket != INVALID_SOCKET; }
+	BOOL IsConnected() const;
+	BOOL IsListening() const;
 	const char *IP() const;
 	unsigned short Port() const;
 	BOOL WaitingData(int wait_ms = 0) const;
+	static WSADATA StartComm(BYTE revision = 2, BYTE version = 2);
+	static void StopComm();
 };
 
 #endif // __LIOCOM_H__
