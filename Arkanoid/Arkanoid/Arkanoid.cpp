@@ -77,7 +77,6 @@ Label c_lPath;
 Button c_bExit, c_bLoad, c_bSave;
 CheckBox c_cbFullscreen, c_cbGeometry, c_cbParticles;
 SliderBar c_sFriction, c_sSlowdown, c_sBrick;
-Socket sock;
 
 std::deque<float> lfFrameIntervals;
 const float fTimeSumMax = 3;
@@ -136,6 +135,10 @@ const float fBoxSeg[4][5][2] = {
 };
 #undef rc
 #undef rb
+
+const char *pchServerIP = "localhost";
+int nServerPort = 12345;
+std::string strSend = "Hello world! ", strReceive;
 
 Application app("Arkanoid");
 
@@ -608,34 +611,20 @@ bool LoadNextLevel()
 	}
 }
 
-std::string strSend = "Hello world!", strReceive;
 static DWORD WINAPI CommProc(void * param)
 {
 	HANDLE hThread = GetCurrentThread();
 	SetThreadPriority(hThread, THREAD_PRIORITY_NORMAL);
 	SetThreadName("Comm");
-	Socket server, connection;
-	ErrorCode err;
-
-	err = server.Listen(12345);
+	Client connection;
+	ErrorCode err = connection.Connect(pchServerIP, nServerPort);
 	if( err )
 	{
-		Print("Error starting listening: %s\n", err);
-		err = connection.Connect("localhost", 12345);
-		if( err )
-			Print("Error connecting: %s\n", err);
-		else
-			Print("Connected to server at %s:%d\n", connection.IP(), connection.Port());
+		Print("Error connecting: %s\n", err);
+		return -1;
 	}
-	else
-	{
-		Print("Started listening at %s:%d\n", server.IP(), server.Port());
-		err = server.Accept(connection);
-		if( err )
-			Print("Error accepting: %s\n", err);
-		else
-			Print("Connected client %s:%d\n", connection.IP(), connection.Port());
-	}
+
+	Print("Connected to server at %s:%d\n", connection.IP(), connection.Port());
 
 	while (app.bIsProgramLooping && connection.IsConnected())
 	{
@@ -661,11 +650,13 @@ static DWORD WINAPI CommProc(void * param)
 			if( err )
 			{
 				Print("Error receiving: %s\n", err);
+				connection.Disconnect();
+				break;
 			}
 			else if( size > 0 )
 			{
 				strReceive.append(buffer, size);
-				Print("Received: %s\n", strReceive.c_str());
+				Print("All received data: %s\n", strReceive.c_str());
 			}
 			else
 			{
@@ -1161,7 +1152,6 @@ void Application::Draw()
 
 void Application::Destroy()
 {
-	sock.Disconnect();
 	evComm.Signal();
 	Socket::StopComm();
 }
