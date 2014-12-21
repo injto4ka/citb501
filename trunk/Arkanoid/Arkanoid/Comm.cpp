@@ -2,13 +2,29 @@
 
 #pragma comment(lib, "ws2_32.lib" )
 
+static ErrorCode Create(SOCKET &sock)
+{
+	sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (sock != INVALID_SOCKET)
+		return NO_ERROR;
+	switch( WSAGetLastError() )
+	{
+		case WSANOTINITIALISED: return "A successful WSAStartup call must occur before using this function.";
+		case WSAENETDOWN: return "The network subsystem or the associated service provider has failed.";
+		case WSAEAFNOSUPPORT: return "The specified address family is not supported.";
+		case WSAEINPROGRESS: return "A blocking Windows Sockets 1.1 call is in progress, or the service provider is still processing a callback function.";
+		case WSAEMFILE: return "No more socket descriptors are available.";
+		case WSAENOBUFS: return "No buffer space is available. The socket cannot be created.";
+		case WSAEPROTONOSUPPORT: return "The specified protocol is not supported.";
+		case WSAEPROTOTYPE: return "The specified protocol is the wrong type for this socket.";
+		case WSAESOCKTNOSUPPORT: return "The specified socket type is not supported in this address family.";
+		default: return "Unknown creation error";
+	}
+}
+
 Socket::Socket(): m_socket(INVALID_SOCKET)
 {
 	memset(&m_address, 0, sizeof(m_address));
-}
-Socket::~Socket()
-{
-	Disconnect();
 }
 WSADATA Socket::StartComm(BYTE revision, BYTE version)
 {
@@ -26,10 +42,9 @@ void Socket::Disconnect()
     {
 		closesocket(m_socket);
 		m_socket = INVALID_SOCKET;
-		memset(&m_address, 0, sizeof(m_address));
     }
 }
-ErrorCode Socket::Listen(WORD port)
+ErrorCode Server::Listen(WORD port)
 {
 	Disconnect();
 	SOCKET sock;
@@ -42,8 +57,9 @@ ErrorCode Socket::Listen(WORD port)
 	addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 	if(::bind(sock, (SOCKADDR*) &addr, sizeof(addr)) == SOCKET_ERROR)
 	{
+		int err = WSAGetLastError();
 		closesocket(sock);
-		switch(WSAGetLastError())
+		switch(err)
 		{
 			case WSANOTINITIALISED: return "Note  A successful WSAStartup call must occur before using this function.";
 			case WSAENETDOWN: return "The network subsystem has failed.";
@@ -60,8 +76,9 @@ ErrorCode Socket::Listen(WORD port)
 	}
 	if(::listen(sock, SOMAXCONN) == SOCKET_ERROR)
 	{
+		int err = WSAGetLastError();
 		closesocket(sock);
-		switch(WSAGetLastError())
+		switch(err)
 		{
 			case WSANOTINITIALISED: return "A successful WSAStartup call must occur before using this function.";
 			case WSAENETDOWN: return "The network subsystem has failed.";
@@ -80,13 +97,13 @@ ErrorCode Socket::Listen(WORD port)
 	m_address = addr;
 	return NO_ERROR;
 }
-ErrorCode Socket::Accept(Socket &sock)
+ErrorCode Server::Accept(Client &client)
 {
 	if( m_socket == INVALID_SOCKET)
 		return "Not listening";
-	sock.Disconnect();
-	int addrlen = sizeof(sock.m_address);
-	sock.m_socket = ::accept(m_socket, (SOCKADDR*)&sock.m_address, &addrlen);
+	client.Disconnect();
+	int addrlen = sizeof(client.m_address);
+	client.m_socket = ::accept(m_socket, (SOCKADDR*)&client.m_address, &addrlen);
 	if( m_socket == INVALID_SOCKET )
 	{
 		switch(WSAGetLastError())
@@ -108,26 +125,7 @@ ErrorCode Socket::Accept(Socket &sock)
 	}
 	return NO_ERROR;
 }
-ErrorCode Socket::Create(SOCKET &sock)
-{
-	sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (sock != INVALID_SOCKET)
-		return NO_ERROR;
-	switch( WSAGetLastError() )
-	{
-		case WSANOTINITIALISED: return "A successful WSAStartup call must occur before using this function.";
-		case WSAENETDOWN: return "The network subsystem or the associated service provider has failed.";
-		case WSAEAFNOSUPPORT: return "The specified address family is not supported.";
-		case WSAEINPROGRESS: return "A blocking Windows Sockets 1.1 call is in progress, or the service provider is still processing a callback function.";
-		case WSAEMFILE: return "No more socket descriptors are available.";
-		case WSAENOBUFS: return "No buffer space is available. The socket cannot be created.";
-		case WSAEPROTONOSUPPORT: return "The specified protocol is not supported.";
-		case WSAEPROTOTYPE: return "The specified protocol is the wrong type for this socket.";
-		case WSAESOCKTNOSUPPORT: return "The specified socket type is not supported in this address family.";
-		default: return "Unknown creation error";
-	}
-}
-ErrorCode Socket::Connect(const char *ip, WORD port)
+ErrorCode Client::Connect(const char *ip, WORD port)
 {
 	Disconnect();
 	SOCKADDR_IN addr = {};
@@ -158,8 +156,9 @@ ErrorCode Socket::Connect(const char *ip, WORD port)
 		return err;
 	if(::connect(sock, (SOCKADDR*) &addr, sizeof(addr)) == SOCKET_ERROR)
 	{
+		int err = WSAGetLastError();
 		closesocket(sock);
-		switch(WSAGetLastError())
+		switch(err)
 		{
 			case WSANOTINITIALISED: return "A successful WSAStartup call must occur before using this function.";
 			case WSAENETDOWN: return "The network subsystem has failed.";
@@ -187,7 +186,7 @@ ErrorCode Socket::Connect(const char *ip, WORD port)
 	m_address = addr;
 	return NO_ERROR;
 }
-ErrorCode Socket::Receive(void *buffer, int &bytes) const
+ErrorCode Client::Receive(void *buffer, int &bytes) const
 {
 	bytes = ::recv(m_socket, (char *)buffer, bytes, 0);
 	if(bytes != SOCKET_ERROR)
@@ -213,7 +212,7 @@ ErrorCode Socket::Receive(void *buffer, int &bytes) const
 		default: return "Unknown receive error";
 	}
 }
-ErrorCode Socket::Send(const void *buffer, int &bytes) const
+ErrorCode Client::Send(const void *buffer, int &bytes) const
 {
 	bytes = ::send(m_socket, (const char *)buffer, bytes, 0);
 	if(bytes != SOCKET_ERROR)
@@ -260,7 +259,7 @@ BOOL Socket::WaitingData(int wait_ms) const
 	FD_SET(m_socket, &set);
 	return select(1, &set, NULL, NULL, &time) > 0;
 }
-BOOL Socket::IsConnected() const
+BOOL Client::IsConnected() const
 {
 	if( m_socket == INVALID_SOCKET)
 		return FALSE;
@@ -270,7 +269,7 @@ BOOL Socket::IsConnected() const
 		return FALSE;
 	return opt >= 0;
 }
-BOOL Socket::IsListening() const
+BOOL Server::IsListening() const
 {
 	if( m_socket == INVALID_SOCKET)
 		return FALSE;
@@ -279,4 +278,30 @@ BOOL Socket::IsListening() const
     if(::getsockopt(m_socket,  SOL_SOCKET, SO_ACCEPTCONN, (char*)&opt, &len) == SOCKET_ERROR)
 		return FALSE;
 	return !!opt;
+}
+ErrorCode Server::WaitingCount(const std::list<Client> &clients, int &count, int wait_ms) const
+{
+	timeval time = {0};
+	time.tv_usec = wait_ms * 1000;
+	fd_set set = {0};
+	FD_SET(m_socket, &set);
+	for(auto j = clients.begin(); j != clients.end(); j++)
+	{
+		const Socket &client = *j;
+		FD_SET(client.m_socket, &set);
+	}
+	count = select(clients.size(), &set, NULL, NULL, &time);
+	if( count != SOCKET_ERROR )
+		return NO_ERROR;
+	switch(WSAGetLastError())
+	{
+		case WSANOTINITIALISED: return "A successful WSAStartup call must occur before using this function.";
+		case WSAEFAULT: return "The Windows Sockets implementation was unable to allocate needed resources for its internal operations, or the readfds, writefds, exceptfds, or timeval parameters are not part of the user address space.";
+		case WSAENETDOWN: return "The network subsystem has failed.";
+		case WSAEINVAL: return "The time-out value is not valid, or all three descriptor parameters were null.";
+		case WSAEINTR: return "A blocking Windows Socket 1.1 call was canceled through WSACancelBlockingCall.";
+		case WSAEINPROGRESS: return "A blocking Windows Sockets 1.1 call is in progress, or the service provider is still processing a callback function.";
+		case WSAENOTSOCK: return "One of the descriptor sets contains an entry that is not a socket.";
+		default: return "Unknown select error";
+	}
 }

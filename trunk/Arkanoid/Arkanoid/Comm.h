@@ -12,26 +12,34 @@
 
 class Socket
 {
-protected:
+public:
 	SOCKET m_socket;
 	SOCKADDR_IN m_address;
-	static ErrorCode Create(SOCKET &sock);
-public:
 	Socket();
-	~Socket();
 	void Disconnect();
-	ErrorCode Accept(Socket &sock);
+	const char *IP() const;
+	unsigned short Port() const;
+	static WSADATA StartComm(BYTE revision = 2, BYTE version = 2);
+	static void StopComm();
+	BOOL WaitingData(int wait_ms = 0) const;
+};
+
+class Client: public Socket
+{
+public:
 	ErrorCode Connect(const char *ip, WORD port);
-	ErrorCode Listen(WORD port);
 	ErrorCode Receive(void *buffer, int &n) const;
 	ErrorCode Send(const void *buffer, int &n) const;
 	BOOL IsConnected() const;
+};
+
+class Server: public Socket 
+{
+public:
 	BOOL IsListening() const;
-	const char *IP() const;
-	unsigned short Port() const;
-	BOOL WaitingData(int wait_ms = 0) const;
-	static WSADATA StartComm(BYTE revision = 2, BYTE version = 2);
-	static void StopComm();
+	ErrorCode Accept(Client &client);
+	ErrorCode Listen(WORD port);
+	ErrorCode WaitingCount(const std::list<Client> &clients, int &count, int wait_ms = 0) const;
 };
 
 #endif // __LIOCOM_H__
