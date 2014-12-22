@@ -77,6 +77,7 @@ Label c_lPath;
 Button c_bExit, c_bLoad, c_bSave;
 CheckBox c_cbFullscreen, c_cbGeometry, c_cbParticles;
 SliderBar c_sFriction, c_sSlowdown, c_sBrick;
+static CriticalSection csReceive, csSend;
 
 std::deque<float> lfFrameIntervals;
 const float fTimeSumMax = 3;
@@ -138,11 +139,89 @@ const float fBoxSeg[4][5][2] = {
 
 const char *pchServerIP = "localhost";
 int nServerPort = 12345;
-std::string strSend = "Hello world! ", strReceive;
+std::string strSend, strReceive;
 
 Application app("Arkanoid");
 
 //=========================================================================================================
+
+template<int bytes>
+void PushNumber(int n)
+{
+	char buff[bytes];
+	unsigned __int64 n1 = (unsigned int)n;
+	for (int i = 0; i < bytes; i++)
+	{
+		buff[i] = n1 % 256;
+		n1 /= 256;
+	}
+#ifdef _DEBUG
+	unsigned __int64 n2 = 0;
+	for (int i = bytes - 1; i >= 0; i--)
+	{
+		n2 *= 256;
+		n2 += (unsigned char)buff[i];
+	}
+	ASSERT(n == (int)n2);
+#endif
+	{
+		Lock lock(csSend);
+		strSend.append(buff, bytes);
+	}
+}
+
+template<int bytes>
+bool PopNumber(int &n)
+{
+	if ((int)strReceive.size() < n)
+		return false;
+	std::string str;
+	{
+		Lock lock(csReceive);
+		str = strReceive.substr(0, bytes);
+		strReceive = strReceive.substr(bytes);
+	}
+	const char *buff = str.c_str();
+	unsigned __int64 n1 = 0;
+	for (int i = bytes - 1; i >= 0; i--)
+	{
+		n1 *= 256;
+		n1 += (unsigned char)buff[i];
+	}
+	n = (int)n1;
+	return true;
+}
+
+void PushNumber(float f, int p)
+{
+	PushNumber<4>(Round(f * p));
+}
+
+bool PopNumber(float &f, int p)
+{
+	int n;
+	if (!PopNumber<4>(n))
+		return false;
+	f = n / float(p);
+	return true;
+}
+
+void PushPos(float x, float y, float z)
+{
+	PushNumber(x, 1000000);
+	PushNumber(y, 1000000);
+	PushNumber(z, 1000000);
+}
+
+bool PopPos(float &x, float &y, float &z)
+{
+	if (strReceive.size() < 3*4)
+		return false;
+	PopNumber(x, 1000000);
+	PopNumber(y, 1000000);
+	PopNumber(z, 1000000);
+	return true;
+}
 
 void _Terminate()
 {
@@ -638,8 +717,8 @@ static DWORD WINAPI CommProc(void * param)
 			}
 			else
 			{
-				Print("Sent: %s\n", strSend.substr(0, size).c_str());
-				strSend = strSend.substr(size, strSend.size() - size);
+				Lock lock(csSend);
+				strSend = strSend.substr(size);
 			}
 		}
 		while( connection.WaitingData() )
@@ -655,8 +734,8 @@ static DWORD WINAPI CommProc(void * param)
 			}
 			else if( size > 0 )
 			{
+				Lock lock(csReceive);
 				strReceive.append(buffer, size);
-				Print("All received data: %s\n", strReceive.c_str());
 			}
 			else
 			{
@@ -778,7 +857,11 @@ void Application::Update()
 	bool bUpdateClick = bNewClick;
 	bNewSelection = false;
 	bNewClick = false;
-
+	/*
+	unsigned char b0 = 123, b1 = 234, b2 = 3, b3 = 234;
+	int n = (int)b0 + (int)b1 * 256 + (int)b2 * 256 * 256 + (int)b3 * 256 * 256 * 256;
+	PushNumber<4>(n);
+	*/
 	float time = timer.Time();
 	float dt = (time - fLastSimTime) * fSimTimeCoef;
 	fLastSimTime = time;
@@ -788,7 +871,11 @@ void Application::Update()
 		static int nIdx = 0;
 		if( bKeys[VK_ESCAPE] )
 			nIdx = 0;
-		if( bUpdateSelection )
+		if (bUpdateSelection)
+		{
+			PushPos(fSelX, fSelY, fSelZ);
+		}
+		else if (PopPos(fSelX, fSelY, fSelZ))
 		{
 			DbgClear();
 			Point ptSel(fSelX, fSelY, fSelZ);
@@ -796,7 +883,7 @@ void Application::Update()
 			const float fRad = 0.05f;
 			if( nIdx >= 0 && nIdx < 4 )
 			{
-				if( bUpdateClick )
+				//if( bUpdateClick )
 				{
 					ptSpline1[nIdx] = ptSel;
 					nIdx++;
@@ -810,7 +897,7 @@ void Application::Update()
 			}
 			else if(nIdx >= 4 && nIdx < 8)
 			{
-				if( bUpdateClick )
+				//if( bUpdateClick )
 				{
 					ptSpline2[nIdx - 4] = ptSel;
 					nIdx++;
