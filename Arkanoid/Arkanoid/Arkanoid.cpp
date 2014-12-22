@@ -857,11 +857,7 @@ void Application::Update()
 	bool bUpdateClick = bNewClick;
 	bNewSelection = false;
 	bNewClick = false;
-	/*
-	unsigned char b0 = 123, b1 = 234, b2 = 3, b3 = 234;
-	int n = (int)b0 + (int)b1 * 256 + (int)b2 * 256 * 256 + (int)b3 * 256 * 256 * 256;
-	PushNumber<4>(n);
-	*/
+
 	float time = timer.Time();
 	float dt = (time - fLastSimTime) * fSimTimeCoef;
 	fLastSimTime = time;
@@ -871,11 +867,10 @@ void Application::Update()
 		static int nIdx = 0;
 		if( bKeys[VK_ESCAPE] )
 			nIdx = 0;
-		if (bUpdateSelection)
-		{
-			PushPos(fSelX, fSelY, fSelZ);
-		}
-		else if (PopPos(fSelX, fSelY, fSelZ))
+
+		bool bAddSpline = !bUpdateSelection && PopPos(fSelX, fSelY, fSelZ);
+
+		if (bUpdateSelection || bAddSpline)
 		{
 			DbgClear();
 			Point ptSel(fSelX, fSelY, fSelZ);
@@ -883,7 +878,11 @@ void Application::Update()
 			const float fRad = 0.05f;
 			if( nIdx >= 0 && nIdx < 4 )
 			{
-				//if( bUpdateClick )
+				if( bUpdateClick )
+				{
+					PushPos(fSelX, fSelY, fSelZ);
+				}
+				else if( bAddSpline )
 				{
 					ptSpline1[nIdx] = ptSel;
 					nIdx++;
@@ -897,7 +896,11 @@ void Application::Update()
 			}
 			else if(nIdx >= 4 && nIdx < 8)
 			{
-				//if( bUpdateClick )
+				if( bUpdateClick )
+				{
+					PushPos(fSelX, fSelY, fSelZ);
+				}
+				else if( bAddSpline )
 				{
 					ptSpline2[nIdx - 4] = ptSel;
 					nIdx++;
