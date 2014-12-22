@@ -54,7 +54,7 @@ ErrorCode Server::Listen(WORD port)
 	SOCKADDR_IN addr = {};
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(port);
-	addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+	addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	if(::bind(sock, (SOCKADDR*) &addr, sizeof(addr)) == SOCKET_ERROR)
 	{
 		int err = WSAGetLastError();
