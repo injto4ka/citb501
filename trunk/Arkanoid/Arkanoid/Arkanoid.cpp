@@ -121,6 +121,7 @@ struct Brick
 	int type;
 	float x, y;
 } bricks[ nBrickCount ] = {};
+float pfWayPath[nBrickCount] = {0};
 float fJumpEffectZ = 0;
 int nSelectedBrick = -1;
 std::string strCurrentLevel;
@@ -545,89 +546,87 @@ void Draw3D()
 	glPopAttrib();
 
 	glPushAttrib(GL_ENABLE_BIT);
+	
 	if( bTest )
 	{
 	}
+	else if( bEditor )
+	{
+		GLfloat pGlowPos[] = {fSelX, fSelY, fSelZ, 1.0f};
+		glLightfv(GL_LIGHT2, GL_POSITION, pGlowPos);
+		if( nSelectedBrick == -1 )
+			glDisable(GL_FOG);
+		else
+			glEnable(GL_FOG);
+	}
 	else
 	{
-		if( bEditor )
+		GLfloat pGlowPos[] = {fBallX, fBallY, fBallZ, 1.0f};
+		glLightfv(GL_LIGHT2, GL_POSITION, pGlowPos);
+
+		if( bInterface )
 		{
-			GLfloat pGlowPos[] = {fSelX, fSelY, fSelZ, 1.0f};
-			glLightfv(GL_LIGHT2, GL_POSITION, pGlowPos);
-			if( nSelectedBrick == -1 )
+			DrawLine3D(fSelX, fSelY, fSelZ, fBallX, fBallY, fBallZ, 0xff00ffff);
+			DrawFrame(fSelX, fSelY, fSelZ);
+		}
+
+		glPushMatrix();
+		glTranslatef(fBallX, fBallY, fBallZ);
+		glRotatef(fBallA, fBallRotX, fBallRotY, fBallRotZ);
+		texBall.Bind();
+		dlBall.Execute();
+		glPopMatrix();
+
+		glPushMatrix();
+		glTranslatef(fPlatX, fPlatY, 0);
+		texPlatform.Bind();
+		dlPlatform.Execute();
+		glPopMatrix();
+
+	}
+	for(int k = 0; k < MAX_TYPE; k++)
+	{
+		for(int i = 0; i < nBrickCount; i++)
+		{
+			const Brick &brick = bricks[i];
+			if( bSortDraw && brick.type != k )
+				continue;
+			bool bSelected = i == nSelectedBrick;
+			float z = 0;
+			glPushAttrib(GL_ENABLE_BIT);
+			if( bEditor && bSelected )
+			{
+				z = 0.1f + 0.1f*sinf(fJumpEffectZ);
 				glDisable(GL_FOG);
-			else
-				glEnable(GL_FOG);
-		}
-		else
-		{
-			GLfloat pGlowPos[] = {fBallX, fBallY, fBallZ, 1.0f};
-			glLightfv(GL_LIGHT2, GL_POSITION, pGlowPos);
-
-			if( bInterface )
-			{
-				DrawLine3D(fSelX, fSelY, fSelZ, fBallX, fBallY, fBallZ, 0xff00ffff);
-				DrawFrame(fSelX, fSelY, fSelZ);
 			}
-
 			glPushMatrix();
-			glTranslatef(fBallX, fBallY, fBallZ);
-			glRotatef(fBallA, fBallRotX, fBallRotY, fBallRotZ);
-			texBall.Bind();
-			dlBall.Execute();
-			glPopMatrix();
-
-			glPushMatrix();
-			glTranslatef(fPlatX, fPlatY, 0);
-			texPlatform.Bind();
-			dlPlatform.Execute();
-			glPopMatrix();
-
-		}
-		for(int k = 0; k < MAX_TYPE; k++)
-		{
-			for(int i = 0; i < nBrickCount; i++)
+			glTranslatef(brick.x, brick.y, z);
+			switch( brick.type )
 			{
-				const Brick &brick = bricks[i];
-				if( bSortDraw && brick.type != k )
-					continue;
-				bool bSelected = i == nSelectedBrick;
-				float z = 0;
-				glPushAttrib(GL_ENABLE_BIT);
-				if( bEditor && bSelected )
-				{
-					z = 0.1f + 0.1f*sinf(fJumpEffectZ);
-					glDisable(GL_FOG);
-				}
-				glPushMatrix();
-				glTranslatef(brick.x, brick.y, z);
-				switch( brick.type )
-				{
-				case 1:
-					texSmile.Bind();
-					dlBrickBall.Execute();
-					break;
-				case 2:
-					texWood.Bind();
-					dlBrickCube.Execute();
-					break;
-				case 3:
-					texClock.Bind();
-					dlBrickBall.Execute();
-					break;
-				default:
-					if( bEditor )
-					{
-						texParticle.Bind();
-						dlBrickBall.Execute();
-					}
-				}
-				glPopMatrix();
-				glPopAttrib();
-			}
-			if( !bSortDraw )
+			case 1:
+				texSmile.Bind();
+				dlBrickBall.Execute();
 				break;
+			case 2:
+				texWood.Bind();
+				dlBrickCube.Execute();
+				break;
+			case 3:
+				texClock.Bind();
+				dlBrickBall.Execute();
+				break;
+			default:
+				if( bEditor )
+				{
+					texParticle.Bind();
+					dlBrickBall.Execute();
+				}
+			}
+			glPopMatrix();
+			glPopAttrib();
 		}
+		if( !bSortDraw )
+			break;
 	}
 	glPopAttrib();
 	DbgDraw();
@@ -699,7 +698,7 @@ static DWORD WINAPI CommProc(void * param)
 	ErrorCode err = connection.Connect(pchServerIP, nServerPort);
 	if( err )
 	{
-		Print("Error connecting: %s\n", err);
+		Print("Error connecting to %s:%d: %s\n", pchServerIP, nServerPort, err);
 		return -1;
 	}
 
@@ -851,6 +850,97 @@ void Application::OnInput(const Input &input)
 	}
 }
 
+int FindSelectedBrick()
+{
+	int nNewSelectedBrick = -1;
+	float fMinDist2 = 0;
+	for(int i = 0; i < nBrickCount; i++)
+	{
+		const Brick &brick = bricks[i];
+		float dx = fSelX - brick.x, dy = fSelY - brick.y;
+		float fDist2 = dx * dx + dy * dy;
+		if( fDist2 < fMaxSelDist2 && (nNewSelectedBrick < 0 || fDist2 < fMinDist2 ) )
+		{
+			fMinDist2 = fDist2;
+			nNewSelectedBrick = i;
+		}
+	}
+	return nNewSelectedBrick;
+}
+
+static inline int PosPack(int x, int y)
+{
+	return x | (y << 16);
+}
+
+static inline void PosUnpack(int a, int& x, int& y)
+{
+	x = a & 0xFFFF;
+	y = a >> 16;
+}
+
+void Wave(const float *pfWayCost, int x, int y, int width, int height, float *pfWayPath)
+{
+	if( x < 0 || x >= width || y < 0 || y >= height )
+		return;
+	int o = y * width + x;
+	if( IsFloatZero(pfWayCost + o) )
+		return;
+
+	std::fill(pfWayPath, pfWayPath + width * height, FLT_MAX);
+	
+	std::vector<int> vWave[2];
+	size_t uCapacity = width * height / 8;
+	vWave[0].reserve(uCapacity);
+	vWave[1].reserve(uCapacity);
+
+	vWave[0].push_back(PosPack(x, y));
+	pfWayPath[o] = 0;
+	
+	int t = 0;
+	for(;;)
+	{
+		std::vector<int> &pWaveRead = vWave[t];
+		size_t uWaveSize = pWaveRead.size();
+		if( !uWaveSize )
+			break;
+		std::vector<int> &pWaveWrite = vWave[!t];
+		pWaveWrite.clear();
+		t = !t;
+		int *pWavePos = &pWaveRead[0];
+		static const float steps[] = { 1.0f, 1.4142135623730950488016887242097f };
+		static const int directions[][4][2] = {
+			{{ 0, -1 }, {-1,  0}, { 1,  0}, { 0,  1}},
+			{{-1, -1 }, { 1, -1}, {-1,  1}, { 1,  1}},
+		};
+		for(int k = 0; k < 2; k++)
+		{
+			const float step = steps[k];
+			for( size_t i = 0; i < uWaveSize; i++ )
+			{
+				int x1, y1;
+				PosUnpack(pWavePos[i], x1, y1);
+				const int o1 = y1 * width + x1;
+				const float dist0 = pfWayPath[o1];
+				for( int j = 0; j < 4; j++ )
+				{
+					int dx = directions[k][j][0], dy = directions[k][j][1];
+					if( (y1 == 0 && dy < 0) || (y1 == height-1 && dy > 0) || (x1 == 0 && dx < 0) || (x1 == width-1 && dx > 0) )
+						continue;
+					int o = o1 + dy * width + dx;
+					if( IsFloatZero(pfWayCost + o) )
+						continue;
+					float *fPath = pfWayPath + o, dist = dist0 + step;
+					if( dist >= *fPath )
+						continue;
+					pWaveWrite.push_back(PosPack(x1 + dx, y1 + dy));
+					*fPath = dist;
+				}
+			}
+		}
+	}
+}
+
 void Application::Update()
 {
 	bool bUpdateSelection = bNewSelection;
@@ -864,98 +954,74 @@ void Application::Update()
 
 	if( bTest )
 	{
-		static int nIdx = 0;
-		if( bKeys[VK_ESCAPE] )
-			nIdx = 0;
-
-		bool bAddSpline = !bUpdateSelection && PopPos(fSelX, fSelY, fSelZ);
-
-		if (bUpdateSelection || bAddSpline)
+		if( bUpdateSelection )
 		{
 			DbgClear();
-			Point ptSel(fSelX, fSelY, fSelZ);
-			static Point ptSpline1[4], ptSpline2[4];
-			const float fRad = 0.05f;
-			if( nIdx >= 0 && nIdx < 4 )
+			int nSel = FindSelectedBrick();
+			if( nSel != -1 && !bricks[nSel].type )
 			{
-				if( bUpdateClick )
+				int nSelY = nSel / LEVEL_WIDTH, nSelX = nSel % LEVEL_WIDTH;
+				static int nIdx = 0;
+				if( !nIdx && bUpdateClick )
 				{
-					PushPos(fSelX, fSelY, fSelZ);
+					DbgAddCircle(Point(bricks[nSel].x, bricks[nSel].y), 0.03f);
+					nIdx = 1;
+					float pfWayCost[nBrickCount] = {0};
+					for(int y = 0, o = 0; y < LEVEL_HEIGHT; y++)
+						for(int x = 0; x < LEVEL_WIDTH; x++, o++)
+							pfWayCost[o] = !bricks[o].type;
+					ASSERT(pfWayCost[nSel]);
+					Wave(pfWayCost, nSelX, nSelY, LEVEL_WIDTH, LEVEL_HEIGHT, pfWayPath);
 				}
-				else if( bAddSpline )
+				else
 				{
-					ptSpline1[nIdx] = ptSel;
-					nIdx++;
-				}
-				DbgAddCircle(ptSpline1[0], fRad);
-				for(int i = 1; i<nIdx; i++)
-				{
-					DbgAddCircle(ptSpline1[i], fRad);
-					DbgAddVector(ptSpline1[i-1], ptSpline1[i] - ptSpline1[i-1]);
+					nIdx = 0;
+					float fMinDist = pfWayPath[nSel];
+					if( fMinDist < LEVEL_WIDTH * LEVEL_HEIGHT )
+					{
+						Point p0(bricks[nSel].x, bricks[nSel].y);
+						while( fMinDist > 0 )
+						{
+							int nNextIdx = -1;
+							for(int dy = -1; dy <= 1; dy++)
+							{
+								int y = nSelY + dy;
+								if( y < 0 || y >= LEVEL_HEIGHT)
+									continue;
+								int oy = LEVEL_WIDTH * y;
+								for(int dx = -1; dx <= 1; dx++)
+								{
+									int x = nSelX + dx;
+									if( x < 0 || x >= LEVEL_WIDTH)
+										continue;
+									int o = oy + x;
+									float fDist = pfWayPath[o];
+									if( fDist < fMinDist )
+									{
+										fMinDist = fDist;
+										nNextIdx = o;
+									}
+								}
+							}
+							ASSERT(nNextIdx != -1);
+							if(nNextIdx == -1)
+								break;
+							nSelY = nNextIdx / LEVEL_WIDTH;
+							nSelX = nNextIdx % LEVEL_WIDTH;
+							Point p1(bricks[nNextIdx].x, bricks[nNextIdx].y);
+							DbgAddVector(p0, p1 - p0); 
+							p0 = p1;
+						}
+					}
 				}
 			}
-			else if(nIdx >= 4 && nIdx < 8)
-			{
-				if( bUpdateClick )
-				{
-					PushPos(fSelX, fSelY, fSelZ);
-				}
-				else if( bAddSpline )
-				{
-					ptSpline2[nIdx - 4] = ptSel;
-					nIdx++;
-				}
-				DbgAddCircle(ptSpline2[0], fRad);
-				for(int i = 1; i<nIdx-4; i++)
-				{
-					DbgAddCircle(ptSpline2[i], fRad);
-					DbgAddVector(ptSpline2[i-1], ptSpline2[i] - ptSpline2[i-1]);
-				}
-			}
-			else
-			{
-				Point c1[4], c2[4], p1, p2;
-				SplineCoefs(ptSpline1, c1);
-				SplineCoefs(ptSpline2, c2);
-				float fMinDist = 0.001f, fPrecision = fMinDist / 10;
-				float k1, k2;
-				float dist2 = DistSplineSpline2(ptSpline1, ptSpline2, fPrecision, &k1, &k2);
-				if( dist2 <= fMinDist * fMinDist )
-				{
-					p1 = SplinePos(c1, k1);
-					p2 = SplinePos(c2, k2);
-					DbgAddCircle(p1, 0.05, 0xff0000ff);
-				}
-				DistSplinePoint2(ptSpline1, ptSel, fPrecision, &k1);
-				DistSplinePoint2(ptSpline2, ptSel, fPrecision, &k2);
-				p1 = SplinePos(c1, k1);
-				p2 = SplinePos(c2, k2);
-				DbgAddVector(ptSel, p1 - ptSel, 0xff00ff00);
-				DbgAddVector(ptSel, p2 - ptSel, 0xff00ff00);
-			}
-			if( nIdx >= 4 )
-				DbgAddSpline(ptSpline1, 0xff00ffff, 1.0f, 0.01f);
-			if( nIdx >= 8 )
-				DbgAddSpline(ptSpline2, 0xffffff00, 1.0f, 0.01f);
 		}
 	}
 	else if(bEditor)
 	{
 		if( bUpdateSelection )
 		{
-			int nNewSelectedBrick = -1;
-			float fMinDist2 = 0;
-			for(int i = 0; i < nBrickCount; i++)
-			{
-				const Brick &brick = bricks[i];
-				float dx = fSelX - brick.x, dy = fSelY - brick.y;
-				float fDist2 = dx * dx + dy * dy;
-				if( fDist2 < fMaxSelDist2 && (nNewSelectedBrick < 0 || fDist2 < fMinDist2 ) )
-				{
-					fMinDist2 = fDist2;
-					nNewSelectedBrick = i;
-				}
-			}
+			int nNewSelectedBrick = FindSelectedBrick();
 			if( nNewSelectedBrick != nSelectedBrick )
 			{
 				fJumpEffectZ = 0;

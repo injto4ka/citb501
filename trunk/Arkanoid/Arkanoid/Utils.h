@@ -80,6 +80,14 @@ inline float FastInvSqrt(float x)
 	_asm movss res, xmm0
 	return res;
 }
+inline bool IsFloatZero(float x)
+{
+	return !(*(const __int32 *)&x) || (*(const __int32 *)&x) == 0x80000000;
+}
+inline bool IsFloatZero(const float *x)
+{
+	return !(*(const __int32 *)x) || (*(const __int32 *)x) == 0x80000000;
+}
 class File
 {
 	FILE *pFile;
