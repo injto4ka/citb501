@@ -208,6 +208,10 @@ public:
 		m_slider.m_fValue = fValue;
 		Invalidate();
 	}
+	float GetValue() const
+	{
+		return m_slider.m_fValue;
+	}
 };
 
 class Button: public Label

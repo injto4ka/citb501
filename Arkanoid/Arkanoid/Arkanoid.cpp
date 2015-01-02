@@ -75,7 +75,7 @@ Event evComm;
 Panel c_pEditor, c_pGame, c_pControls, c_pParticles, c_pTest;
 Label c_lPath;
 Button c_bExit, c_bLoad, c_bSave;
-CheckBox c_cbFullscreen, c_cbGeometry, c_cbParticles;
+CheckBox c_cbFullscreen, c_cbGeometry, c_cbParticles, c_cbBrush;
 SliderBar c_sFriction, c_sSlowdown, c_sBrick;
 static CriticalSection csReceive, csSend;
 
@@ -245,12 +245,14 @@ void UpdateUI()
 void ToggleEditor()
 {
 	bEditor = !bEditor;
+	bTest = false;
 	UpdateUI();
 }
 
 void ToggleTest()
 {
 	bTest = !bTest;
+	bEditor = false;
 	UpdateUI();
 }
 
@@ -908,34 +910,26 @@ void Wave(const float *pfWayCost, int x, int y, int width, int height, float *pf
 		pWaveWrite.clear();
 		t = !t;
 		int *pWavePos = &pWaveRead[0];
-		static const float steps[] = { 1.0f, 1.4142135623730950488016887242097f };
-		static const int directions[][4][2] = {
-			{{ 0, -1 }, {-1,  0}, { 1,  0}, { 0,  1}},
-			{{-1, -1 }, { 1, -1}, {-1,  1}, { 1,  1}},
-		};
-		for(int k = 0; k < 2; k++)
+		static const int directions[4][2] = {{ 0, -1 }, {-1,  0}, { 1,  0}, { 0,  1}};
+		for( size_t i = 0; i < uWaveSize; i++ )
 		{
-			const float step = steps[k];
-			for( size_t i = 0; i < uWaveSize; i++ )
+			int x1, y1;
+			PosUnpack(pWavePos[i], x1, y1);
+			const int o1 = y1 * width + x1;
+			const float dist0 = pfWayPath[o1];
+			for( int j = 0; j < 4; j++ )
 			{
-				int x1, y1;
-				PosUnpack(pWavePos[i], x1, y1);
-				const int o1 = y1 * width + x1;
-				const float dist0 = pfWayPath[o1];
-				for( int j = 0; j < 4; j++ )
-				{
-					int dx = directions[k][j][0], dy = directions[k][j][1];
-					if( (y1 == 0 && dy < 0) || (y1 == height-1 && dy > 0) || (x1 == 0 && dx < 0) || (x1 == width-1 && dx > 0) )
-						continue;
-					int o = o1 + dy * width + dx;
-					if( IsFloatZero(pfWayCost + o) )
-						continue;
-					float *fPath = pfWayPath + o, dist = dist0 + step;
-					if( dist >= *fPath )
-						continue;
-					pWaveWrite.push_back(PosPack(x1 + dx, y1 + dy));
-					*fPath = dist;
-				}
+				int dx = directions[j][0], dy = directions[j][1];
+				if( (y1 == 0 && dy < 0) || (y1 == height-1 && dy > 0) || (x1 == 0 && dx < 0) || (x1 == width-1 && dx > 0) )
+					continue;
+				int o = o1 + dy * width + dx;
+				if( IsFloatZero(pfWayCost + o) )
+					continue;
+				float *fPath = pfWayPath + o, dist = dist0 + 1;
+				if( dist >= *fPath )
+					continue;
+				pWaveWrite.push_back(PosPack(x1 + dx, y1 + dy));
+				*fPath = dist;
 			}
 		}
 	}
@@ -983,24 +977,19 @@ void Application::Update()
 						while( fMinDist > 0 )
 						{
 							int nNextIdx = -1;
-							for(int dy = -1; dy <= 1; dy++)
+							static const int directions[4][2] = {{ 0, -1 }, {-1,  0}, { 1,  0}, { 0,  1}};
+							for( int j = 0; j < 4; j++ )
 							{
-								int y = nSelY + dy;
-								if( y < 0 || y >= LEVEL_HEIGHT)
+								int dx = directions[j][0], dy = directions[j][1];
+								int y = nSelY + dy, x = nSelX + dx;
+								if( y < 0 || y >= LEVEL_HEIGHT || x < 0 || x >= LEVEL_WIDTH)
 									continue;
-								int oy = LEVEL_WIDTH * y;
-								for(int dx = -1; dx <= 1; dx++)
+								int o = LEVEL_WIDTH * y + x;
+								float fDist = pfWayPath[o];
+								if( fDist < fMinDist )
 								{
-									int x = nSelX + dx;
-									if( x < 0 || x >= LEVEL_WIDTH)
-										continue;
-									int o = oy + x;
-									float fDist = pfWayPath[o];
-									if( fDist < fMinDist )
-									{
-										fMinDist = fDist;
-										nNextIdx = o;
-									}
+									fMinDist = fDist;
+									nNextIdx = o;
 								}
 							}
 							ASSERT(nNextIdx != -1);
@@ -1027,7 +1016,12 @@ void Application::Update()
 				fJumpEffectZ = 0;
 				nSelectedBrick = nNewSelectedBrick;
 				if (nSelectedBrick != -1)
-					c_sBrick.SetValue((float)bricks[nSelectedBrick].type);
+				{
+					if( c_cbBrush.m_bChecked )
+						bricks[nSelectedBrick].type = Round(c_sBrick.GetValue());
+					else
+						c_sBrick.SetValue((float)bricks[nSelectedBrick].type);
+				}
 			}
 		}
 		fJumpEffectZ += PI * dt;
@@ -1455,6 +1449,11 @@ BOOL Application::Create()
 	c_sSlowdown.m_slider.m_fMax = 3.0f;
 	c_sSlowdown.m_slider.m_fMin = -3.0f;
 
+	c_cbParticles.CopyTo(c_cbBrush);
+	c_cbBrush.m_strText = "Brush";
+	c_cbBrush.m_nBottom = 90;
+	c_cbBrush.m_nLeft = 10;
+
 	c_sFriction.CopyTo(c_sBrick);
 	c_sBrick.m_name.m_strText = "Type";
 	c_sBrick.m_nHeight = 40;
@@ -1495,6 +1494,7 @@ BOOL Application::Create()
 	c_pEditor.Add(&c_bLoad);
 	c_pEditor.Add(&c_bSave);
 	c_pEditor.Add(&c_sBrick);
+	c_pEditor.Add(&c_cbBrush);
 	c_pEditor.CopyTo(c_pTest);
 
 	c_container.Add(&c_pGame);
