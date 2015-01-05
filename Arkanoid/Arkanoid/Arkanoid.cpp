@@ -11,7 +11,10 @@
 
 #define LEVEL_WIDTH 20
 #define LEVEL_HEIGHT 10
+#define MAX_DIST (LEVEL_WIDTH * LEVEL_HEIGHT)
 #define MAX_TYPE 4
+
+#define SQRT2 1.41421356237f
 
 float fPerspAngle = 60;
 float fPerspNearZ = 0.01f;
@@ -126,6 +129,7 @@ float fJumpEffectZ = 0;
 int nSelectedBrick = -1;
 std::string strCurrentLevel;
 bool bSortDraw = true;
+const bool bManhatDist = true;
 
 #define rc fBrickRadiusCube
 #define rb fBallR
@@ -881,7 +885,7 @@ static inline void PosUnpack(int a, int& x, int& y)
 	y = a >> 16;
 }
 
-void Wave(const float *pfWayCost, int x, int y, int width, int height, float *pfWayPath)
+void Wave(const float *pfWayCost, int x, int y, int width, int height, float *pfWayPath, bool manhat)
 {
 	if( x < 0 || x >= width || y < 0 || y >= height )
 		return;
@@ -910,22 +914,31 @@ void Wave(const float *pfWayCost, int x, int y, int width, int height, float *pf
 		pWaveWrite.clear();
 		t = !t;
 		int *pWavePos = &pWaveRead[0];
-		static const int directions[4][2] = {{ 0, -1 }, {-1,  0}, { 1,  0}, { 0,  1}};
+		static const int directions[][2] = {
+			{ 0, -1 }, {-1,  0}, { 1,  0}, { 0,  1},
+			{-1, -1 }, { 1,  1}, {-1,  1}, { 1, -1},
+		};
+		static const float steps[] = {
+			1, 1, 1, 1,
+			SQRT2, SQRT2, SQRT2, SQRT2,
+		};
+		const int dircount = manhat ? 4 : 8;
 		for( size_t i = 0; i < uWaveSize; i++ )
 		{
 			int x1, y1;
 			PosUnpack(pWavePos[i], x1, y1);
 			const int o1 = y1 * width + x1;
 			const float dist0 = pfWayPath[o1];
-			for( int j = 0; j < 4; j++ )
+			for( int j = 0; j < dircount; j++ )
 			{
 				int dx = directions[j][0], dy = directions[j][1];
 				if( (y1 == 0 && dy < 0) || (y1 == height-1 && dy > 0) || (x1 == 0 && dx < 0) || (x1 == width-1 && dx > 0) )
 					continue;
 				int o = o1 + dy * width + dx;
-				if( IsFloatZero(pfWayCost + o) )
+				float cost = pfWayCost[o];
+				if( IsFloatZero(cost) )
 					continue;
-				float *fPath = pfWayPath + o, dist = dist0 + 1;
+				float *fPath = pfWayPath + o, dist = dist0 + steps[j] * cost;
 				if( dist >= *fPath )
 					continue;
 				pWaveWrite.push_back(PosPack(x1 + dx, y1 + dy));
@@ -965,20 +978,40 @@ void Application::Update()
 						for(int x = 0; x < LEVEL_WIDTH; x++, o++)
 							pfWayCost[o] = !bricks[o].type;
 					ASSERT(pfWayCost[nSel]);
-					Wave(pfWayCost, nSelX, nSelY, LEVEL_WIDTH, LEVEL_HEIGHT, pfWayPath);
+					Wave(pfWayCost, nSelX, nSelY, LEVEL_WIDTH, LEVEL_HEIGHT, pfWayPath, bManhatDist);
+					for(int y = 0, o = 0; y < LEVEL_HEIGHT; y++)
+					{
+						for(int x = 0; x < LEVEL_WIDTH; x++, o++)
+						{
+							float dist = pfWayPath[o];
+							if( dist < MAX_DIST )
+							{
+								Print("%6.2f |", dist);
+							}
+							else
+							{
+								Print("       |");
+							}
+						}
+						Print("\n");
+					}
 				}
 				else
 				{
 					nIdx = 0;
 					float fMinDist = pfWayPath[nSel];
-					if( fMinDist < LEVEL_WIDTH * LEVEL_HEIGHT )
+					if( fMinDist < MAX_DIST )
 					{
 						Point p0(bricks[nSel].x, bricks[nSel].y);
 						while( fMinDist > 0 )
 						{
 							int nNextIdx = -1;
-							static const int directions[4][2] = {{ 0, -1 }, {-1,  0}, { 1,  0}, { 0,  1}};
-							for( int j = 0; j < 4; j++ )
+							static const int directions[][2] = {
+								{ 0, -1 }, {-1,  0}, { 1,  0}, { 0,  1},
+								{-1, -1 }, { 1,  1}, {-1,  1}, { 1, -1},
+							};
+							int dircount = bManhatDist ? 4 : 8;
+							for( int j = 0; j < dircount; j++ )
 							{
 								int dx = directions[j][0], dy = directions[j][1];
 								int y = nSelY + dy, x = nSelX + dx;
