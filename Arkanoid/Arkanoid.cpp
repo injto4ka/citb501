@@ -207,6 +207,19 @@ public:
 	}
 } timer;
 
+int nClearColorEnd = 0;
+float fFreq = 5.0f;
+bool bTimeStart = false;
+
+void StartFreq(float fNewFreq)
+{
+	bTimeStart = true;
+	fFreq = fNewFreq;
+	timer.Restart();
+	nClearColorEnd = 0xffff0000;
+	bUpdated = TRUE;
+}
+
 void Update()
 {
 	if( dInput.size() > 0 )
@@ -244,6 +257,15 @@ void Update()
 				case VK_DOWN:
 					Print("DOWN\n");
 					break;
+				case VK_F5:
+					StartFreq(5.0f);
+					break;
+				case VK_F6:
+					StartFreq(1.0f);
+					break;
+				case VK_F7:
+					bTimeStart = false;
+					break;
 				}
 			}
 		}
@@ -252,6 +274,25 @@ void Update()
 }
 void Draw()
 {
+	int nClearColorNow = nClearColor;
+	BYTE *rgb = INT_TO_BYTE(nClearColorNow);
+
+	if (bTimeStart)
+	{
+		BYTE *rgb1 = INT_TO_BYTE(nClearColorEnd);
+		float fCoef = (1 + sin(-3.14f/2 + 2 * 3.14f * timer.Time() / fFreq)) / 2;
+
+		rgb[RED] = rgb[RED] + (int)((rgb1[RED] - rgb[RED]) * fCoef);
+		rgb[GREEN] = rgb[GREEN] + (int)((rgb1[GREEN] - rgb[GREEN]) * fCoef);
+		rgb[BLUE] = rgb[BLUE] + (int)((rgb1[BLUE] - rgb[BLUE]) * fCoef);
+
+		bUpdated = TRUE;
+	}
+
+	glClearColor(rgb[RED] / 255.0f,
+		rgb[GREEN] / 255.0f,
+		rgb[BLUE] / 255.0f,
+		rgb[ALPHA] / 255.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
@@ -271,13 +312,6 @@ BOOL glCreate()
 	// Enable transparent colors
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-	// Set the clear color
-	BYTE *rgb = INT_TO_BYTE(nClearColor);
-	glClearColor(	rgb[RED] / 255.0f, 
-					rgb[GREEN] / 255.0f, 
-					rgb[BLUE] / 255.0f, 
-					rgb[ALPHA] / 255.0f);
 
 	return TRUE;
 }
