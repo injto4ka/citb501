@@ -398,6 +398,17 @@ public:
 	}
 } timer;
 
+float
+	fBallX = 100, fBallY = 100,
+	fBallTargetX = fBallX, fBallTargetY = fBallY,
+	fBallSpeed = 50;
+
+float GetDistToTarget()
+{
+	float fBallDistX = fBallTargetX - fBallX, fBallDistY = fBallTargetY - fBallY;
+	return sqrtf(fBallDistX * fBallDistX + fBallDistY * fBallDistY);
+}
+
 void Update()
 {
 	if( !bLoaded )
@@ -417,12 +428,23 @@ void Update()
 		}
 		switch(input.eType)
 		{
+		case InputMouse:
+		{
+			const Mouse &mouse = input.mouse;
+			if (mouse.lbutton)
+			{
+				fBallTargetX = (float)mouse.x;
+				fBallTargetY = (float)(nWinHeight - mouse.y);
+			}
+			break;
+		}
 		case InputKey:
+		{
 			const Keyboard &keyboard = input.keyboard;
 			bKeys[keyboard.code] = keyboard.pressed;
-			if( !keyboard.repeated && keyboard.pressed )
+			if (!keyboard.repeated && keyboard.pressed)
 			{
-				switch( keyboard.code )
+				switch (keyboard.code)
 				{
 				case VK_F11:
 					ToggleFullscreen();
@@ -444,14 +466,31 @@ void Update()
 					break;
 				}
 			}
-		}
+		}}
 	}
-	bUpdated = TRUE;
 }
+
+float fTime0 = 0;
 void Draw()
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	imgBall.Draw(0, 0);
+
+	float fTimeNow = timer.Time();
+	float fBallMoveTime = fTimeNow - fTime0;
+	if (fBallMoveTime > 0)
+	{
+		float fTotalDist = GetDistToTarget();
+		if (fTotalDist > 0)
+		{
+			float fTravelDist = fBallMoveTime * fBallSpeed * max(20, min(fTotalDist, 100)) / 100;
+			float fCoef = min(1.0f, fTravelDist / fTotalDist);
+			fBallX += (fBallTargetX - fBallX) * fCoef;
+			fBallY += (fBallTargetY - fBallY) * fCoef;
+		}
+	}
+	float x = fBallX - imgBall.GetWidth() / 2, y = fBallY - imgBall.GetHeight() / 2;
+	imgBall.Draw(max(0, x), max(0, y));
+	fTime0 = fTimeNow;
 }
 
 void Redraw()
@@ -837,9 +876,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLin
 						DispatchMessage(&msg);
 						continue;
 					}
-					if( bUpdated )
+					if( TRUE )
 					{
-						bUpdated = FALSE;
 						Draw();
 						SwapBuffers(hDC);
 					}
