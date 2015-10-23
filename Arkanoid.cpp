@@ -71,8 +71,11 @@ float
 	fBallX = 0, fBallY = 0, fBallZ = 0,
 	fBallX0 = 0, fBallY0 = 0,
 	fFrameX = -1.0f, fFrameY = -1.0f, fFrameZ = 0.0f,
-	fBallSpeed = 0.5f;
-volatile int nNewWinX = -1, nNewWinY = -1;
+	fBallSpeed = 1.0f, fBallAngle = 0.0f, fBallRotateSpeed = 30.0f;
+volatile int nNewWinX = nWinWidth / 2, nNewWinY = nWinHeight / 2;
+int nDivs = 16;
+float fRadius = 0.5f;
+bool bGeometryMode = false;
 
 Event evInput;
 
@@ -136,16 +139,35 @@ void Update()
 					case VK_F4:
 						Terminate();
 						break;
+					case VK_F2:
+						bGeometryMode = !bGeometryMode;
+						break;
 					case VK_LEFT:
+						dlBall.Destroy();
+						nDivs--;
+						if (nDivs < 1)
+							nDivs = 1;
 						Print("LEFT\n");
 						break;
 					case VK_RIGHT:
+						dlBall.Destroy();
+						nDivs++;
+						if (nDivs > 30)
+							nDivs = 30;
 						Print("RIGHT\n");
 						break;
 					case VK_UP:
+						dlBall.Destroy();
+						fRadius += 0.05f;
+						if (fRadius > 5.0f)
+							fRadius = 5.0f;
 						Print("UP\n");
 						break;
 					case VK_DOWN:
+						dlBall.Destroy();
+						fRadius -= 0.05f;
+						if (fRadius < 0.1f)
+							fRadius = 0.1f;
 						Print("DOWN\n");
 						break;
 					}
@@ -184,12 +206,12 @@ void Draw3D()
 
 	float time = timer.Time();
 	float dx = fFrameX - fBallX, dy = fFrameY - fBallY, fDist2 = dx*dx + dy*dy;
+	float dt = time - fLastDrawTime;
 	if( fDist2 > 1e-6f )
 	{
 		// Interpolate the ball position towards the target position
 		float fDist = sqrtf(fDist2);
 		float fTravelTime = fDist / fBallSpeed;
-		float dt = time - fLastDrawTime;
 		if( dt > fTravelTime )
 		{
 			fBallX = fFrameX;
@@ -206,15 +228,29 @@ void Draw3D()
 	{
 		fBallX = fFrameX;
 		fBallY = fFrameY;
+#define STEP 100
+		nNewWinX += Random(-STEP, STEP);
+		nNewWinX = Clamp(nNewWinX, 0, nWinWidth);
+		nNewWinY += Random(-STEP, STEP);
+		nNewWinY = Clamp(nNewWinY, 0, nWinHeight);
 	}
 	fLastDrawTime = time;
+
+	fBallAngle += dt * fBallRotateSpeed;
 
 	DrawLine(fFrameX, fFrameY, fFrameZ, fBallX, fBallY, fBallZ, 0xff00ffff);
 	DrawFrame(fFrameX, fFrameY, fFrameZ);
 
 	glPushMatrix();
 	glTranslatef(fBallX, fBallY, fBallZ);
+	glRotatef(fBallAngle, 0, 0, 1.0f);
 	tTexture.Bind();
+	glColor3f(1.0f, 1.0f, 1.0f);
+	if (!dlBall)
+	{
+		CompileDisplayList cds(dlBall);
+		DrawSphere(fRadius, nDivs);
+	}
 	dlBall.Execute();
 	glPopMatrix();
 }
@@ -228,11 +264,23 @@ void Draw()
 
 	// 3D
 	glPushAttrib(GL_ENABLE_BIT);
-	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_LIGHTING);
-	glEnable(GL_TEXTURE_2D); // Enable Texture Mapping
+	glPushAttrib(GL_POLYGON_BIT);
 	glDisable(GL_COLOR_MATERIAL);
-	glEnable(GL_FOG); // Enables fog
+	if (bGeometryMode)
+	{
+		glDisable(GL_DEPTH_TEST);
+		glDisable(GL_LIGHTING);
+		glDisable(GL_TEXTURE_2D);
+		glDisable(GL_FOG);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	}
+	else
+	{
+		glEnable(GL_DEPTH_TEST);
+		glEnable(GL_LIGHTING);
+		glEnable(GL_TEXTURE_2D); // Enable Texture Mapping
+		glEnable(GL_FOG); // Enables fog
+	}
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity ();
 	gluPerspective (fPerspAngle,
@@ -242,7 +290,8 @@ void Draw()
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 	Draw3D();
-	glPopAttrib();
+	glPopAttrib(); // GL_ENABLE_BIT
+	glPopAttrib(); // GL_POLYGON_BIT
 
 	// 2D
 	glPushAttrib(GL_ENABLE_BIT);
@@ -273,11 +322,6 @@ void Load()
 		ErrorCode err = tTexture.Create(imgTexture);
 		if( err )
 			Print("Error creating texture: %s", err);
-	}
-	if( !dlBall )
-	{
-		CompileDisplayList cds(dlBall);
-		DrawSphere(0.5f);
 	}
 	bLoaded = true;
 }

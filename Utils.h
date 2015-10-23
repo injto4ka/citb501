@@ -17,6 +17,12 @@
 #define INT_TO_BYTE(color) ((BYTE*)(&(color)))
 #define BOOL_TO_STR(boolean) ((boolean) ? "true" : "false")
 
+template<class T, class A, class B>
+inline T Clamp(T x, A minx, B maxx)
+{
+	return x > maxx ? maxx : (x < minx ? minx : x);
+}
+
 typedef const char* ErrorCode;
 
 void Print(char *fmt, ...);
