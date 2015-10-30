@@ -54,7 +54,10 @@ GLfloat
 float fFogStart = 0.0f;
 float fFogEnd = 1.0f;
 float fFogDensity = 0.08f;
+float time = 0;
+float dt = 0;
 float fLastDrawTime = 0;
+float fFrameTimes[256] = {};
 GLenum uFogMode = GL_EXP;
 GLenum uFogQuality = GL_DONT_CARE;
 BOOL bKeys[256] = {0};
@@ -76,10 +79,11 @@ Font font("Courier New", -16);
 Event evInput;
 Panel cPanel;
 Label cLabel;
-Button cButton;
+Button cButton, bToggleFullScr;
 Control cContainer;
 
 #define Message(fmt, ...) Message(hWnd, fmt, __VA_ARGS__)
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof(*(arr)))
 
 void Terminate()
 {
@@ -196,8 +200,16 @@ void Draw2D()
 
 	char buff[128];
 	FORMAT(buff, "(%d, %d)", nCoordX, nCoordY);
-	font.Print(buff, (float)nWinWidth - 5, (float)nWinHeight, 0xffffffff, ALIGN_RIGHT, ALIGN_BOTTOM);
+	font.Print(buff, (float)nWinWidth - 5, (float)nWinHeight - 5, 0xffffffff, ALIGN_RIGHT, ALIGN_TOP);
 
+	float fTotalTime = 0;
+	for (int i = 0; i < ARRAY_SIZE(fFrameTimes); i++)
+		fTotalTime += fFrameTimes[i];
+	float fFPS = 0;
+	if (fTotalTime > 0)
+		fFPS = (float)ARRAY_SIZE(fFrameTimes) / fTotalTime;
+	FORMAT(buff, "%.2f", fFPS);
+	font.Print(buff, (float)5, (float)nWinHeight - 5, 0xffffffff, ALIGN_LEFT, ALIGN_TOP);
 }
 
 void Draw3D()
@@ -230,14 +242,13 @@ void Draw3D()
 		fFrameZ = (float)dFrameZ;
 	}
 
-	float time = timer.Time();
+	
 	float dx = fFrameX - fBallX, dy = fFrameY - fBallY, fDist2 = dx*dx + dy*dy;
 	if( fDist2 > 1e-6f )
 	{
 		// Interpolate the ball position towards the target position
 		float fDist = sqrtf(fDist2);
 		float fTravelTime = fDist / fBallSpeed;
-		float dt = time - fLastDrawTime;
 		if( dt > fTravelTime )
 		{
 			fBallX = fFrameX;
@@ -255,7 +266,6 @@ void Draw3D()
 		fBallX = fFrameX;
 		fBallY = fFrameY;
 	}
-	fLastDrawTime = time;
 
 	DrawLine(fFrameX, fFrameY, fFrameZ, fBallX, fBallY, fBallZ, 0xff00ffff);
 	DrawFrame(fFrameX, fFrameY, fFrameZ);
@@ -269,6 +279,13 @@ void Draw3D()
 
 void Draw()
 {
+	time = timer.Time();
+	dt = time - fLastDrawTime;
+	fLastDrawTime = time;
+
+	memmove(fFrameTimes + 1, fFrameTimes, sizeof(fFrameTimes) - sizeof(fFrameTimes[0]));
+	fFrameTimes[0] = dt;
+
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	// 3D
@@ -338,11 +355,27 @@ void Init()
 	cButton.m_nClickColor = 0xffccffff;
 	cButton.m_pOnClick = Terminate;
 
+	bToggleFullScr.SetBounds(100, 50, 120, 60);
+	bToggleFullScr.m_strText = "Fullscreen";
+	bToggleFullScr.m_pFont = &font;
+	bToggleFullScr.m_nMarginX = 5;
+	bToggleFullScr.m_nOffsetY = 4;
+	bToggleFullScr.m_eAlignH = ALIGN_CENTER;
+	bToggleFullScr.m_eAlignV = ALIGN_CENTER;
+	bToggleFullScr.m_nForeColor = 0xff0000cc;
+	bToggleFullScr.m_nBorderColor = 0xff0000cc;
+	bToggleFullScr.m_nBackColor = 0xff00cccc;
+	bToggleFullScr.m_nOverColor = 0xff00ffff;
+	bToggleFullScr.m_nClickColor = 0xffccffff;
+	bToggleFullScr.m_bCheckable = true;
+	bToggleFullScr.m_pOnClick = ToggleFullscreen;
+
 	cPanel.SetBounds(320, 20, 200, 100);
 	cPanel.m_nBorderColor = 0xff0000ff;
 	cPanel.m_nBackColor = 0xffffffff;
 	cPanel.Add(&cLabel);
 	cPanel.Add(&cButton);
+	cPanel.Add(&bToggleFullScr);
 
 	cContainer.Add(&cPanel);
 }

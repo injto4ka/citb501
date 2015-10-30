@@ -166,17 +166,28 @@ protected:
 	virtual void OnMousePos(int x, int y, BOOL click);
 	virtual void OnMouseExit();
 	virtual void OnMouseEnter();
-	virtual void OnClick(){ if(m_pOnClick) m_pOnClick();}
+	virtual void OnClick()
+	{
+		if (m_bChecked)
+			m_bChecked = false;
+		else
+			m_bChecked = m_bCheckable;
+		if (m_pOnClick)
+			m_pOnClick();
+	}
 	virtual void Draw()
 	{
-		DrawBounds((m_bClick && m_nClickColor) ? m_nClickColor : ((m_bOver && m_nOverColor) ? m_nOverColor : m_nBackColor), m_nBorderColor, m_nBorderWidth);
+		DrawBounds(((m_bClick || m_bChecked) && m_nClickColor) ? m_nClickColor : ((m_bOver && m_nOverColor) ? m_nOverColor : m_nBackColor), m_nBorderColor, m_nBorderWidth);
 		DrawText(m_nForeColor);
 	}
 public:
-	bool m_bClick, m_bWaitClick;
+	bool m_bClick, m_bWaitClick, m_bChecked, m_bCheckable;
 	int m_nClickColor, m_nOverColor;
 	void (*m_pOnClick)();
-	Button():m_nOverColor(0), m_nClickColor(0), m_bClick(false), m_bWaitClick(false), m_pOnClick(NULL)
+	Button():
+		m_nOverColor(0), m_nClickColor(0), m_bClick(false),
+		m_bWaitClick(false), m_pOnClick(NULL),
+		m_bChecked(false), m_bCheckable(false)
 	{}
 };
 
