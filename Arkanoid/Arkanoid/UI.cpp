@@ -243,7 +243,7 @@ bool Control::_OnMousePos(int x, int y, BOOL click)
 {
 	x -= m_nLeft;
 	y -= m_nBottom;
-	if( m_bDisabled || x < 0 || x >= m_nWidth || y < 0 || y >= m_nHeight )
+	if( m_bDisabled || !m_bVisible || x < 0 || x > m_nWidth || y < 0 || y > m_nHeight )
 	{
 		if( m_bOver )
 		{
@@ -282,12 +282,12 @@ void Control::SetBounds(int nLeft, int nBottom, int nWidth, int nHeight)
 	m_nLeft = nLeft;
 	m_nBottom = nBottom;
 }
-void Panel::DrawBounds(int nBackColor, int nBorderColor, int nBorderWidth)
+void Panel::DrawBounds(int nBackColor, int nBorderColor, int nBorderWidth, float fRatioX)
 {
 	int x = 0, y = 0;
 	ClientToScreen(x, y);
-	if (nBackColor)
-		FillBox(x, y, m_nWidth, m_nHeight, nBackColor);
+	if (nBackColor && fRatioX != 0.0f)
+		FillBox(x, y, (int)(fRatioX * m_nWidth), m_nHeight, nBackColor);
 	if (nBorderColor && nBorderWidth)
 		DrawBox(x, y, m_nWidth, m_nHeight, nBorderColor, (float)nBorderWidth);
 }

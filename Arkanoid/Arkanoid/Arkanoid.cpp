@@ -76,10 +76,11 @@ volatile float fBallR = 0.5f;
 volatile bool bNewBall = false;
 Font font("Courier New", -16);
 Event evInput;
-Panel c_panel;
+Panel c_panel, c_parsys;
 Label c_label;
 Button c_bExit;
-CheckBox c_cbFullscreen, c_cbGeometry;
+CheckBox c_cbFullscreen, c_cbGeometry, c_cbParsys;
+SlideBar c_sbSpeed;
 Container c_container;
 std::list<float> lfFrameIntervals;
 const int nMaxFrames = 300;
@@ -135,6 +136,11 @@ void ToggleFullscreen()
 void ToggleGeometry()
 {
 	bGeometry = !bGeometry;
+}
+
+void ToggleParsys()
+{
+	c_parsys.m_bVisible = !c_parsys.m_bVisible;
 }
 
 BOOL ReadImage(Image &image, const char *pchFilename)
@@ -382,6 +388,8 @@ void DrawPar()
 			par.b = fColor[2];
 		}
 
+		fParSlowdown = 1.0f / c_sbSpeed.GetValue();
+
 		float dt = fFrameInterval / fParSlowdown;
 		par.x += par.vx * dt;
 		par.y += par.vy * dt;
@@ -516,11 +524,28 @@ void Init()
 	c_cbFullscreen.m_strText = "Fullscreen";
 	c_cbFullscreen.m_nCheckColor = 0xffccffcc;
 	c_cbFullscreen.m_pOnClick = ToggleFullscreen;
+	
 	c_cbFullscreen.CopyTo(c_cbGeometry);
-
 	c_cbGeometry.m_nBottom = 70;
 	c_cbGeometry.m_strText = "Geometry";
 	c_cbGeometry.m_pOnClick = ToggleGeometry;
+
+	c_cbGeometry.CopyTo(c_cbParsys);
+	c_cbParsys.m_nLeft = 10;
+	c_cbParsys.m_strText = "Parsys";
+	c_cbParsys.m_pOnClick = ToggleParsys;
+
+	c_label.CopyTo(c_sbSpeed);
+	c_sbSpeed.m_eAlignH = ALIGN_CENTER;
+	c_sbSpeed.m_nBorderColor = 0xff0000ff;
+	c_sbSpeed.m_nBorderWidth = 1;
+	c_sbSpeed.m_nForeColor = 0xff000000;
+	c_sbSpeed.m_fProgress = 1.0f;
+	c_sbSpeed.m_pchFmt = "%.2f";
+	c_sbSpeed.m_fMin = 0.5f;
+	c_sbSpeed.m_fMax = 1.5f;
+	c_sbSpeed.m_nSliderColor = 0xff0000ff;
+	c_sbSpeed.SetBounds(10, 10, 100, 20);
 
 	c_panel.SetBounds(320, 20, 200, 100);
 	c_panel.m_nBorderColor = 0xff0000ff;
@@ -529,8 +554,16 @@ void Init()
 	c_panel.Add(&c_bExit);
 	c_panel.Add(&c_cbFullscreen);
 	c_panel.Add(&c_cbGeometry);
+	c_panel.Add(&c_cbParsys);
+
+	c_panel.CopyTo(c_parsys);
+	c_parsys.m_nBottom = 200;
+	c_parsys.m_nHeight = 300;
+	c_parsys.m_bVisible = false;
+	c_parsys.Add(&c_sbSpeed);
 
 	c_container.Add(&c_panel);
+	c_container.Add(&c_parsys);
 }
 
 void Redraw()

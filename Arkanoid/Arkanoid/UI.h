@@ -149,7 +149,7 @@ protected:
 	{
 		DrawBounds(m_nBackColor, m_nBorderColor, m_nBorderWidth);
 	}
-	void DrawBounds(int nBackColor, int nBorderColor, int nBorderWidth);
+	void DrawBounds(int nBackColor, int nBorderColor, int nBorderWidth, float fRatioX = 1.0f);
 public:
 	int m_nBorderColor, m_nBackColor, m_nBorderWidth;
 	Panel():m_nBorderColor(0), m_nBackColor(0), m_nBorderWidth(1){}
@@ -221,6 +221,51 @@ public:
 		other.m_nClickColor = m_nClickColor;
 		other.m_nOverColor = m_nOverColor;
 		other.m_pOnClick = m_pOnClick;
+	}
+};
+
+class SlideBar : public Label
+{
+protected:
+	virtual void OnMousePos(int x, int y, BOOL click)
+	{
+		if (click) {
+			m_fProgress = (float)x / m_nWidth;
+			UpdateText();
+		}
+	}
+	virtual void Draw()
+	{
+		DrawBounds(m_nBackColor, m_nBorderColor, m_nBorderWidth);
+		DrawBounds(m_nSliderColor, m_nBorderColor, m_nBorderWidth, m_fProgress);
+		DrawText(m_nForeColor);
+	}
+	void UpdateText()
+	{
+		float fValue = GetValue();
+		char buff[128];
+		_snprintf(buff, 127, "%f", fValue);
+		m_strText = buff;
+	}
+	virtual void AdjustSize()
+	{
+		Label::AdjustSize();
+		UpdateText();
+	}
+public:
+	int m_nSliderColor;
+	float m_fProgress, m_fMin, m_fMax;
+	const char *m_pchFmt;
+	SlideBar() :m_fProgress(0.0f), m_fMin(0.0f), m_fMax(1.0f), m_nSliderColor(0xffff0000), m_pchFmt("%.3f")
+	{}
+	float GetValue() const
+	{
+		return m_fMin + (m_fMax - m_fMin) * m_fProgress;
+	}
+	void CopyTo(SlideBar& other) const
+	{
+		Label::CopyTo(other);
+		other.m_nSliderColor = m_nSliderColor;
 	}
 };
 
