@@ -181,6 +181,11 @@ void LoadLevel()
 	const char *pchPath = fd.Open();
 	if( pchPath )
 		c_lPath.m_strText = pchPath;
+	File file;
+	file.Open(pchPath, "rb");
+	size_t loaded = fread(bricks, sizeof(bricks), 1, file);
+	if (!loaded)
+		Message("Failed to load level %s", pchPath);
 }
 
 void SaveLevel()
@@ -188,6 +193,11 @@ void SaveLevel()
 	const char *pchPath = fd.Save();
 	if( pchPath )
 		c_lPath.m_strText = pchPath;
+	File file;
+	file.Open(pchPath, "wb");
+	size_t saved = fwrite(bricks, sizeof(bricks), 1, file);
+	if (!saved)
+		Message("Failed to save level %s", pchPath);
 }
 
 void ToggleGeometry()
