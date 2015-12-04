@@ -453,6 +453,30 @@ void SetNewDir(float dx, float dy)
 	}
 }
 
+bool LoadNextLevel()
+{
+	bool bReached = strCurrentLevel == "";
+	for (;;)
+	{
+		dir.Reset();
+		while (dir.Next())
+		{
+			auto attrib = dir.GetAttributes();
+			if (!attrib.directory && attrib.size)
+			{
+				char pchPath[MAX_PATH];
+				FORMAT(pchPath, "%s\\Data\\%s", pchCurrentDir, dir.GetData().cFileName);
+				if (bReached && LoadLevel(pchPath))
+					return true;
+				bReached = strCurrentLevel == pchPath;
+			}
+		}
+		if (bReached)
+			return false;
+		bReached = true;
+	}
+}
+
 void Draw3D()
 {
 	glTranslatef(0, 0, fPlaneZ);
@@ -722,6 +746,19 @@ void Draw3D()
 			}
 			if( !bCollision )
 				break;
+			bool bAllDestroyed = true;
+			for (int i = 0; i < nBrickCount; i++)
+			{
+				if (bricks[i].type) {
+					bAllDestroyed = false;
+					break;
+				}
+			}
+			if (bAllDestroyed) {
+				fNewBallX = fBallXStart;
+				fNewBallY = fBallYStart;
+				LoadNextLevel();
+			}
 		}
 		
 		fBallX = fNewBallX;
@@ -891,30 +928,6 @@ void Randomize()
 {
 	for (int i = 0; i < nBrickCount; i++)
 		bricks[i].type = Random(MAX_TYPE);
-}
-
-bool LoadNextLevel()
-{
-	bool bReached = strCurrentLevel == "";
-	for(;;)
-	{
-		dir.Reset();
-		while(dir.Next())
-		{
-			auto attrib = dir.GetAttributes();
-			if( !attrib.directory && attrib.size )
-			{
-				char pchPath[MAX_PATH];
-				FORMAT(pchPath, "%s\\Data\\%s", pchCurrentDir, dir.GetData().cFileName);
-				if( bReached && LoadLevel(pchPath) )
-					return true;
-				bReached = strCurrentLevel == pchPath;
-			}
-		}
-		if( bReached )
-			return false;
-		bReached = true;
-	}
 }
 
 void Init()
