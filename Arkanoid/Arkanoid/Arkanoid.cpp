@@ -1109,6 +1109,15 @@ void Application::Destroy()
 	evTask.Signal();
 }
 
+inline float EstExp(float x, float err)
+{
+	float res = 1.0f + x;
+	int i = 3;
+	for (float step = 0.5f * x * x; step >= err; step *= x / i++)
+		res += step;
+	return res;
+}
+
 BOOL Application::Create()
 {
 	nLeft = 200;
@@ -1318,6 +1327,8 @@ BOOL Application::Create()
 		if( !attrib.directory )
 			Print("\t%s (%d B)\n", dir.GetData().cFileName, attrib.size);
 	}
+
+	Print("e1 = %f, e2 = %f\n", EstExp(2, 1e-6), EstExp(2, 0.1));
 
 	LoadNextLevel();
 	// Randomize();
