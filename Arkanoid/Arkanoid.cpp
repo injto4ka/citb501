@@ -77,7 +77,7 @@ Label c_lPath;
 Button c_bExit, c_bLoad, c_bSave;
 CheckBox c_cbFullscreen, c_cbGeometry, c_cbParticles;
 SliderBar c_sFriction, c_sSlowdown, c_sBrick;
-static CriticalSection csReceive, csSend;
+static CriticalSection csReceive, csSend, csPointsReceived;
 
 std::deque<float> lfFrameIntervals;
 const float fTimeSumMax = 3;
@@ -140,10 +140,18 @@ const float fBoxSeg[4][5][2] = {
 const char *pchServerIP = "localhost";
 int nServerPort = 12345;
 std::string strSend, strReceive;
+std::deque<Point> vPointsReceived;
+bool bClearSpline = false;
+Client connection;
 
 Application app("Arkanoid");
 
 //=========================================================================================================
+
+enum {
+	NET_CMD_POS = 1,
+	NET_CMD_CLEAR = 2,
+};
 
 template<int bytes>
 void PushNumber(int n)
@@ -173,7 +181,7 @@ void PushNumber(int n)
 template<int bytes>
 bool PopNumber(int &n)
 {
-	if ((int)strReceive.size() < n)
+	if ((int)strReceive.size() < bytes)
 		return false;
 	std::string str;
 	{
@@ -208,18 +216,74 @@ bool PopNumber(float &f, int p)
 
 void PushPos(float x, float y, float z)
 {
-	PushNumber(x, 1000000);
-	PushNumber(y, 1000000);
-	PushNumber(z, 1000000);
+	if (connection.IsConnected()) {
+		PushNumber<1>(NET_CMD_POS);
+		PushNumber(x, 1000000);
+		PushNumber(y, 1000000);
+		PushNumber(z, 1000000);
+	}
+	else {
+		Point pos(x, y, z);
+		Lock lock(csPointsReceived);
+		vPointsReceived.push_back(pos);
+	}
 }
 
-bool PopPos(float &x, float &y, float &z)
+void ClearSpline()
 {
-	if (strReceive.size() < 3*4)
+	if (connection.IsConnected())
+		PushNumber<1>(NET_CMD_CLEAR);
+	else
+		bClearSpline = true;
+}
+
+void OnRecieve()
+{
+	Lock lock(csReceive);
+	size_t uSize = strReceive.size();
+	if (uSize == 0)
+		return;
+	int cmd;
+	const char cCommand = strReceive.front();
+	switch (cCommand)
+	{
+		case NET_CMD_POS: {
+			if (uSize < 13)
+				return;
+			float x, y, z;
+			PopNumber<1>(cmd);
+			PopNumber(x, 1000000);
+			PopNumber(y, 1000000);
+			PopNumber(z, 1000000);
+			Point pos(x, y, z);
+			Lock lock(csPointsReceived);
+			vPointsReceived.push_back(pos);
+			break;
+		}
+		case NET_CMD_CLEAR: {
+			bClearSpline = true;
+			PopNumber<1>(cmd);
+			ASSERT(cmd == NET_CMD_CLEAR);
+			break;
+		}
+		default: {
+			ASSERT(!"Invalid net cmd!");
+			return;
+		}
+	}
+	ASSERT(cmd == cCommand);
+}
+
+bool PopReceivedPos(float &x, float &y, float &z)
+{
+	Lock lock(csPointsReceived);
+	if (vPointsReceived.size() == 0)
 		return false;
-	PopNumber(x, 1000000);
-	PopNumber(y, 1000000);
-	PopNumber(z, 1000000);
+	Point pos = vPointsReceived.front();
+	x = pos.x;
+	y = pos.y;
+	z = pos.z;
+	vPointsReceived.pop_front();
 	return true;
 }
 
@@ -695,7 +759,6 @@ static DWORD WINAPI CommProc(void * param)
 	HANDLE hThread = GetCurrentThread();
 	SetThreadPriority(hThread, THREAD_PRIORITY_NORMAL);
 	SetThreadName("Comm");
-	Client connection;
 	ErrorCode err = connection.Connect(pchServerIP, nServerPort);
 	if( err )
 	{
@@ -736,6 +799,7 @@ static DWORD WINAPI CommProc(void * param)
 			{
 				Lock lock(csReceive);
 				strReceive.append(buffer, size);
+				OnRecieve();
 			}
 			else
 			{
@@ -795,6 +859,7 @@ void Application::OnInput(const Input &input)
 				switch( keyboard.code )
 				{
 				case VK_ESCAPE:
+					ClearSpline();
 					bInterface = !bInterface;
 					UpdateUI();
 					break;
@@ -865,10 +930,13 @@ void Application::Update()
 	if( bTest )
 	{
 		static int nIdx = 0;
-		if( bKeys[VK_ESCAPE] )
+		if (bClearSpline) {
+			DbgClear();
+			bClearSpline = false;
 			nIdx = 0;
+		}
 
-		bool bAddSpline = !bUpdateSelection && PopPos(fSelX, fSelY, fSelZ);
+		bool bAddSpline = !bUpdateSelection && PopReceivedPos(fSelX, fSelY, fSelZ);
 
 		if (bUpdateSelection || bAddSpline)
 		{
