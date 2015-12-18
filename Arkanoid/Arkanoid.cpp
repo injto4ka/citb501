@@ -881,13 +881,22 @@ static inline void PosUnpack(int a, int& x, int& y)
 	y = a >> 16;
 }
 
-void Wave(const float *pfWayCost, int x, int y, int width, int height, float *pfWayPath)
+static const int s_directions[][2] = {
+	{ 0, -1 }, { -1, 0 }, { 1, 0 }, { 0, 1 },
+	{ -1, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 }
+};
+static const float s_dists[] = {
+	1.000f, 1.000f, 1.000f, 1.000f,
+	1.414f, 1.414f, 1.414f, 1.414f
+};
+
+bool Wave(const float *pfWayCost, int x, int y, int width, int height, float *pfWayPath)
 {
 	if( x < 0 || x >= width || y < 0 || y >= height )
-		return;
+		return false;
 	int o = y * width + x;
 	if( IsFloatZero(pfWayCost + o) )
-		return;
+		return false;
 
 	std::fill(pfWayPath, pfWayPath + width * height, FLT_MAX);
 	
@@ -910,22 +919,21 @@ void Wave(const float *pfWayCost, int x, int y, int width, int height, float *pf
 		pWaveWrite.clear();
 		t = !t;
 		int *pWavePos = &pWaveRead[0];
-		static const int directions[4][2] = {{ 0, -1 }, {-1,  0}, { 1,  0}, { 0,  1}};
 		for( size_t i = 0; i < uWaveSize; i++ )
 		{
 			int x1, y1;
 			PosUnpack(pWavePos[i], x1, y1);
 			const int o1 = y1 * width + x1;
 			const float dist0 = pfWayPath[o1];
-			for( int j = 0; j < 4; j++ )
+			for( int j = 0; j < 8; j++ )
 			{
-				int dx = directions[j][0], dy = directions[j][1];
+				int dx = s_directions[j][0], dy = s_directions[j][1];
 				if( (y1 == 0 && dy < 0) || (y1 == height-1 && dy > 0) || (x1 == 0 && dx < 0) || (x1 == width-1 && dx > 0) )
 					continue;
 				int o = o1 + dy * width + dx;
 				if( IsFloatZero(pfWayCost + o) )
 					continue;
-				float *fPath = pfWayPath + o, dist = dist0 + 1;
+				float *fPath = pfWayPath + o, dist = dist0 + pfWayCost[o] * s_dists[j];
 				if( dist >= *fPath )
 					continue;
 				pWaveWrite.push_back(PosPack(x1 + dx, y1 + dy));
@@ -933,6 +941,7 @@ void Wave(const float *pfWayCost, int x, int y, int width, int height, float *pf
 			}
 		}
 	}
+	return true;
 }
 
 void Application::Update()
@@ -959,13 +968,30 @@ void Application::Update()
 				if( !nIdx && bUpdateClick )
 				{
 					DbgAddCircle(Point(bricks[nSel].x, bricks[nSel].y), 0.03f);
-					nIdx = 1;
 					float pfWayCost[nBrickCount] = {0};
-					for(int y = 0, o = 0; y < LEVEL_HEIGHT; y++)
-						for(int x = 0; x < LEVEL_WIDTH; x++, o++)
-							pfWayCost[o] = !bricks[o].type;
-					ASSERT(pfWayCost[nSel]);
-					Wave(pfWayCost, nSelX, nSelY, LEVEL_WIDTH, LEVEL_HEIGHT, pfWayPath);
+					for (int y = 0, o = 0; y < LEVEL_HEIGHT; y++) {
+						for (int x = 0; x < LEVEL_WIDTH; x++, o++) {
+							int nCost = !bricks[o].type;
+							if (nCost) {
+								for (int j = 0; j < 8; j++)
+								{
+									int dx = s_directions[j][0], dy = s_directions[j][1];
+									if ((y == 0 && dy < 0)
+										|| (y == LEVEL_HEIGHT - 1 && dy > 0)
+										|| (x == 0 && dx < 0)
+										|| (x == LEVEL_WIDTH - 1 && dx > 0)
+										|| bricks[o + dy * LEVEL_WIDTH + dx].type)
+									{
+										nCost = 2;
+										break;
+									}
+								}
+							}
+							pfWayCost[o] = (float)nCost;
+						}
+					}
+					if (Wave(pfWayCost, nSelX, nSelY, LEVEL_WIDTH, LEVEL_HEIGHT, pfWayPath))
+						nIdx = 1;
 				}
 				else
 				{
@@ -977,10 +1003,9 @@ void Application::Update()
 						while( fMinDist > 0 )
 						{
 							int nNextIdx = -1;
-							static const int directions[4][2] = {{ 0, -1 }, {-1,  0}, { 1,  0}, { 0,  1}};
-							for( int j = 0; j < 4; j++ )
+							for( int j = 0; j < 8; j++ )
 							{
-								int dx = directions[j][0], dy = directions[j][1];
+								int dx = s_directions[j][0], dy = s_directions[j][1];
 								int y = nSelY + dy, x = nSelX + dx;
 								if( y < 0 || y >= LEVEL_HEIGHT || x < 0 || x >= LEVEL_WIDTH)
 									continue;
