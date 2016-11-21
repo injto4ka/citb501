@@ -465,12 +465,17 @@ void Slider::OnMousePos(int x, int y, BOOL click)
 {
 	if (!click)
 		return;
+	float fNewValue;
 	if (x > m_nWidth - m_nMarginX)
-		m_fValue = m_fMax;
+		fNewValue = m_fMax;
 	else if (x < m_nMarginX)
-		m_fValue = m_fMin;
+		fNewValue = m_fMin;
 	else
-		m_fValue = m_fMin + (m_fMax - m_fMin) * (x - m_nMarginX) / (m_nWidth - 2*m_nMarginX);
+		fNewValue = m_fMin + (m_fMax - m_fMin) * (x - m_nMarginX) / (m_nWidth - 2 * m_nMarginX);
+	if (fNewValue == m_fValue)
+		return;
+	m_fValue = fNewValue;
+	OnChanged();
 	if (m_pOwner)
 		m_pOwner->Invalidate();
 }

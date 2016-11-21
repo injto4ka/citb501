@@ -44,8 +44,8 @@ BOOL bIsProgramLooping = TRUE;
 BOOL bCreateFullScreen = FALSE;
 LONG nDisplayWidth = 800;
 LONG nDisplayHeight = 600; 
-Image imgBall2D, imgBall3D, imgParticle;
-Texture texBall, texParticle;
+Image imgBall2D, imgBall3D, imgParticle, imgCube;
+Texture texBall, texParticle, texCube;
 GLfloat
 	pLightAmbient[]= { 0.5f, 0.5f, 0.5f, 1.0f }, // Ambient Light Values
 	pLightDiffuse[]= { 1.0f, 1.0f, 1.0f, 1.0f }, // Diffuse Light Values
@@ -61,7 +61,7 @@ BOOL bKeys[256] = {0};
 std::deque<Input> dInput;
 CriticalSection csInput, csShared;
 Timer timer;
-DisplayList dlBall, dlBrick;
+DisplayList dlBall, dlBrickBall, dlBrickCube;
 Transform transform;
 float
 	fPlaneZ = -4.0f,
@@ -80,7 +80,7 @@ Panel c_pEditor, c_pGame, c_pControls, c_pParticles;
 Label c_lPath;
 Button c_bExit, c_bLoad, c_bSave;
 CheckBox c_cbFullscreen, c_cbGeometry, c_cbParticles;
-SliderBar c_sFriction, c_sSlowdown;
+SliderBar c_sFriction, c_sSlowdown, c_sBrick;
 Control c_container;
 std::list<float> lfSelIntervals;
 const int nMaxFrames = 300;
@@ -123,6 +123,7 @@ bool bEditor = false;
 #define LEVEL_WIDTH 20
 #define LEVEL_HEIGHT 10
 const int nBrickCount = LEVEL_WIDTH * LEVEL_HEIGHT;
+enum BrickType { BRICK_NONE, BRICK_BALL, BRICK_CUBE, BRICK_END };
 struct Brick
 {
 	int type;
@@ -131,13 +132,17 @@ struct Brick
 	{
 		switch( type )
 		{
-		case 1:
+		case BRICK_BALL:
 			texParticle.Bind();
-			dlBrick.Execute();
+			dlBrickBall.Execute();
+			break;
+		case BRICK_CUBE:
+			texCube.Bind();
+			dlBrickCube.Execute();
 			break;
 		default:
 			texBall.Bind();
-			dlBrick.Execute();
+			dlBrickBall.Execute();
 		}
 	}
 } bricks[ nBrickCount ] = {};
@@ -152,6 +157,12 @@ const float
 	fMaxSelDist2 = 0.1f;
 float fJumpEffectZ = 0;
 int nSelectedBrick = -1;
+void OnBrickTypeChanged()
+{
+	if (nSelectedBrick == -1)
+		return;
+	bricks[nSelectedBrick].type = (int)(c_sBrick.m_slider.m_fValue + 0.5f);
+}
 
 //=========================================================================================================
 
@@ -178,9 +189,7 @@ void ToggleEditor()
 
 void LoadLevel()
 {
-	const char *pchPath = fd.Open();
-	if( pchPath )
-		c_lPath.m_strText = pchPath;
+	const char *pchPath = c_lPath.m_strText.c_str();
 	File file;
 	file.Open(pchPath, "rb");
 	size_t loaded = fread(bricks, sizeof(bricks), 1, file);
@@ -190,9 +199,7 @@ void LoadLevel()
 
 void SaveLevel()
 {
-	const char *pchPath = fd.Save();
-	if( pchPath )
-		c_lPath.m_strText = pchPath;
+	const char *pchPath = c_lPath.m_strText.c_str();
 	File file;
 	file.Open(pchPath, "wb");
 	size_t saved = fwrite(bricks, sizeof(bricks), 1, file);
@@ -380,10 +387,15 @@ void Draw3D()
 
 	if( bEditor )
 	{
-		if( !dlBrick )
+		if( !dlBrickBall )
 		{
-			CompileDisplayList cds(dlBrick);
+			CompileDisplayList cds(dlBrickBall);
 			DrawSphere(fBallEditorR);
+		}
+		if (!dlBrickCube)
+		{
+			CompileDisplayList cds(dlBrickCube);
+			DrawCube(2*fBallEditorR);
 		}
 		if( bUpdateMouse )
 		{
@@ -404,6 +416,8 @@ void Draw3D()
 			{
 				fJumpEffectZ = 0;
 				nSelectedBrick = nNewSelectedBrick;
+				c_sBrick.m_slider.m_fValue = (float)bricks[nSelectedBrick].type;
+				c_sBrick.Invalidate();
 			}
 		}
 		for(int i = 0; i < nBrickCount; i++)
@@ -621,6 +635,7 @@ void Init()
 	ReadImage(imgBall2D, "art/ball2d.tga");
 	ReadImage(imgBall3D, "art/ball3d.tga");
 	ReadImage(imgParticle, "art/star.tga");
+	ReadImage(imgCube, "art/crate.tga");
 
 	texBall.minFilter = GL_LINEAR_MIPMAP_NEAREST;
 	texBall.magFilter = GL_LINEAR;
@@ -635,7 +650,7 @@ void Init()
 
 	c_lPath.SetBounds(130, 10, 390, 20);
 	c_lPath.m_nAnchorRight = 10;
-	c_lPath.m_strText = "";
+	c_lPath.m_strText = "Data/level1.lvl";
 	c_lPath.m_pFont = &smallFont;
 	c_lPath.m_nMarginX = 5;
 	c_lPath.m_nOffsetY = 4;
@@ -719,6 +734,18 @@ void Init()
 	c_pParticles.Add(&c_sFriction);
 	c_pParticles.Add(&c_sSlowdown);
 
+	c_sFriction.CopyTo(c_sBrick);
+	c_sBrick.SetBounds(10, 40, 760, 30);
+	c_sBrick.m_name.m_strText = "Brick";
+	c_sBrick.m_pchFormat = "%.0f";
+	c_sBrick.m_slider.m_fMax = BRICK_END - 1;
+	c_sBrick.m_slider.m_fMin = BRICK_NONE;
+	c_sBrick.m_slider.m_nWidth = 500;
+	c_sBrick.m_slider.m_fValue = 0;
+	c_sBrick.m_slider.m_nAnchorRight = 10;
+	c_sBrick.m_slider.m_pOnChanged = OnBrickTypeChanged;
+	c_sBrick.m_nAnchorRight = 10;
+
 	c_pControls.SetBounds(320, 10, 400, 150);
 	c_pControls.m_nBorderColor = 0xff0000ff;
 	c_pControls.m_nBackColor = 0xffffffff;
@@ -741,6 +768,7 @@ void Init()
 	c_pEditor.Add(&c_lPath);
 	c_pEditor.Add(&c_bLoad);
 	c_pEditor.Add(&c_bSave);
+	c_pEditor.Add(&c_sBrick);
 
 	c_container.Add(&c_pGame);
 	c_container.Add(&c_pEditor);
@@ -758,8 +786,8 @@ void Init()
 			brick.y = fPosY;
 		}
 	}
-	for(int i = 0; i < 30; i++)
-		bricks[Random(nBrickCount)].type = 1;
+	for (int i = 0; i < nBrickCount; i++)
+		bricks[i].type = Random(BRICK_NONE, BRICK_END - 1);
 }
 
 void Redraw()
@@ -816,6 +844,10 @@ BOOL glCreate()
 	err = texParticle.Create(imgParticle);
 	if( err )
 		Print("Error creating particle texBall: %s", err);
+	
+	err = texCube.Create(imgCube);
+	if( err )
+		Print("Error creating particle texCube: %s", err);
 
 	fd.m_hWnd = hWnd;
 
@@ -828,7 +860,7 @@ void glDestroy()
 	texBall.Destroy();
 	texParticle.Destroy();
 	dlBall.Destroy();
-	dlBrick.Destroy();
+	dlBrickBall.Destroy();
 }
 
 //================================================================================================================

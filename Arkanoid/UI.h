@@ -153,16 +153,18 @@ class Slider : public Panel
 protected:
 	virtual void Draw() const;
 	virtual void OnMousePos(int x, int y, BOOL click);
+	virtual void OnChanged(){ if (m_pOnChanged) m_pOnChanged(); }
 public:
 	int m_nForeColor, m_nMarginX, m_nMarginY;
 	float m_fMin, m_fMax, m_fValue;
-	Slider() :m_nForeColor(0xff00ff00), m_fMin(0), m_fMax(1), m_fValue(0.5), m_nMarginX(5), m_nMarginY(5)
+	Slider() :m_nForeColor(0xff00ff00), m_fMin(0), m_fMax(1), m_fValue(0.5), m_nMarginX(5), m_nMarginY(5), m_pOnChanged(NULL)
 	{}
 	float GetRatio() const
 	{
 		return Clamp((m_fValue - m_fMin) / (m_fMax - m_fMin), 0.0f, 1.0f);
 	}
 	void CopyTo(Slider& other) const;
+	void(*m_pOnChanged)();
 };
 
 class Label: public Panel
