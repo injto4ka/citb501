@@ -885,6 +885,11 @@ static inline void PosUnpack(int a, int& x, int& y)
 	y = a >> 16;
 }
 
+static const int directions[][2] = {
+	{ 0, -1 }, { -1, 0 }, { 1, 0 }, { 0, 1 },
+	{ -1, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 },
+};
+
 void Wave(const float *pfWayCost, int x, int y, int width, int height, float *pfWayPath, bool manhat)
 {
 	if( x < 0 || x >= width || y < 0 || y >= height )
@@ -914,14 +919,6 @@ void Wave(const float *pfWayCost, int x, int y, int width, int height, float *pf
 		pWaveWrite.clear();
 		t = !t;
 		int *pWavePos = &pWaveRead[0];
-		static const int directions[][2] = {
-			{ 0, -1 }, {-1,  0}, { 1,  0}, { 0,  1},
-			{-1, -1 }, { 1,  1}, {-1,  1}, { 1, -1},
-		};
-		static const float steps[] = {
-			1, 1, 1, 1,
-			SQRT2, SQRT2, SQRT2, SQRT2,
-		};
 		const int dircount = manhat ? 4 : 8;
 		for( size_t i = 0; i < uWaveSize; i++ )
 		{
@@ -938,7 +935,8 @@ void Wave(const float *pfWayCost, int x, int y, int width, int height, float *pf
 				float cost = pfWayCost[o];
 				if( IsFloatZero(cost) )
 					continue;
-				float *fPath = pfWayPath + o, dist = dist0 + steps[j] * cost;
+				float step = dx && dy ? SQRT2 : 1;
+				float *fPath = pfWayPath + o, dist = dist0 + step * cost;
 				if( dist >= *fPath )
 					continue;
 				pWaveWrite.push_back(PosPack(x1 + dx, y1 + dy));
@@ -1006,10 +1004,6 @@ void Application::Update()
 						while( fMinDist > 0 )
 						{
 							int nNextIdx = -1;
-							static const int directions[][2] = {
-								{ 0, -1 }, {-1,  0}, { 1,  0}, { 0,  1},
-								{-1, -1 }, { 1,  1}, {-1,  1}, { 1, -1},
-							};
 							int dircount = bManhatDist ? 4 : 8;
 							for( int j = 0; j < dircount; j++ )
 							{
